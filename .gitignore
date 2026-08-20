@@ -1,6 +1,7 @@
 node_modules
 .next
 out
+<<<<<<< HEAD
 build
 .env
 .env.local
@@ -9,3 +10,10 @@ build
 next-env.d.ts
 .DS_Store
 .vercel
+=======
+.env
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+>>>>>>> 95963cd (Initial commit)

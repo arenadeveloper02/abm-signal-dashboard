@@ -1,18 +1,16 @@
-import type { Config } from 'tailwindcss';
+import type { Config } from 'tailwindcss'
 
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        page: '#0A0C10',
-        surface: '#12161D',
-        ink: '#E5EAF2',
-        muted: '#8B94A7',
+        brand: '#1A73E8',
+        arenaGreen: '#3BC884',
       },
     },
   },
   plugins: [],
-};
+}
 
-export default config;
+export default config

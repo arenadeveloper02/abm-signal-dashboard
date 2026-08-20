@@ -1,65 +1,67 @@
-import type { Confidence, SignalFamily } from '@/lib/types';
+import type { Confidence, Family, GlobalFilters, Signal } from '@/lib/types'
 
-export const FAMILY_COLORS: Record<SignalFamily, string> = {
-  funding: '#22C55E',
-  csuite: '#6366F1',
-  product: '#F59E0B',
-  partnership: '#38BDF8',
-};
+export const FAMILIES: Family[] = ['funding', 'csuite', 'product', 'partnership']
 
-export const FAMILY_LABELS: Record<SignalFamily, string> = {
-  funding: 'Funding',
-  csuite: 'C-Suite',
-  product: 'Product',
-  partnership: 'Partnership',
-};
+export const CONFIDENCES: Confidence[] = ['HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']
 
-export const CONFIDENCE_COLORS: Record<Confidence, string> = {
-  HIGH: '#EF4444',
-  MEDIUM: '#F59E0B',
-  LOW: '#64748B',
-  UNKNOWN: '#8B94A7',
-};
+export const FAMILY_META: Record<Family, { label: string; color: string }> = {
+  funding: { label: 'Funding', color: '#3BC884' },
+  csuite: { label: 'C-Suite', color: '#B364D7' },
+  product: { label: 'Product', color: '#00A7D6' },
+  partnership: { label: 'Partnership', color: '#F8528F' },
+}
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const CONFIDENCE_META: Record<Confidence, { color: string }> = {
+  HIGH: { color: '#FF5252' },
+  MEDIUM: { color: '#FB8145' },
+  LOW: { color: '#9AA0AE' },
+  UNKNOWN: { color: '#6D717F' },
+}
+
+function toDate(value: string | Date): Date {
+  return value instanceof Date ? value : new Date(value)
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0')
+}
 
 export function formatDate(value: string | Date): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return `${dd}-${mm}-${d.getUTCFullYear()}`;
+  const d = toDate(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
 }
 
 export function formatDateTime(value: string | Date): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mi = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${formatDate(d)} ${hh}:${mi}`;
+  const d = toDate(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return `${formatDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export function formatRelativeTime(value: string | Date): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  const diffMs = Date.now() - d.getTime();
-  const future = diffMs < 0;
-  const abs = Math.abs(diffMs);
-  const minutes = Math.floor(abs / 60000);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  if (minutes < 1) return 'just now';
-  let label: string;
-  if (minutes < 60) label = `${minutes}m`;
-  else if (hours < 24) label = `${hours}h`;
-  else label = `${days}d`;
-  return future ? `in ${label}` : `${label} ago`;
+export function relativeTime(value: string | Date): string {
+  const d = toDate(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  const diff = Date.now() - d.getTime()
+  const suffix = diff < 0 ? 'ahead' : 'ago'
+  const abs = Math.abs(diff)
+  const mins = Math.floor(abs / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ${suffix}`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ${suffix}`
+  const days = Math.floor(hours / 24)
+  return `${days}d ${suffix}`
 }
 
-export function formatMonth(month: string): string {
-  const parts = month.split('-');
-  if (parts.length < 2) return month;
-  const idx = Number(parts[1]) - 1;
-  const name = MONTH_NAMES[idx];
-  return name ? `${name} ${parts[0]}` : month;
+export function filterSignals(signals: Signal[], filters: GlobalFilters, search: string): Signal[] {
+  const q = search.trim().toLowerCase()
+  return signals.filter((s) => {
+    if (filters.family !== 'all' && s.family !== filters.family) return false
+    if (filters.confidence !== 'all' && s.confidence !== filters.confidence) return false
+    if (filters.signalType !== 'all' && s.signal_type !== filters.signalType) return false
+    if (filters.dateFrom && s.date < filters.dateFrom) return false
+    if (filters.dateTo && s.date > filters.dateTo) return false
+    if (q && !s.company.toLowerCase().includes(q) && !s.summary.toLowerCase().includes(q)) return false
+    return true
+  })
 }

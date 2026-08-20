@@ -13,33 +13,45 @@ body {
   color: var(--ds-text-primary);
 }
 
-.card {
-  @apply rounded-xl border border-white/[0.06] bg-[#12161D];
-}
-
-.label-caps {
-  @apply text-[11px] font-medium uppercase tracking-[0.14em] text-[#8B94A7];
-}
-
-.kpi-number {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
+::-webkit-scrollbar-thumb {
+  background: #2e313a;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3d46;
+}
+
 input[type='date']::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--ds-surface-subtle);
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }

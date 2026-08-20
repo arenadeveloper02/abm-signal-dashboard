@@ -1,134 +1,111 @@
 "use client"
 
-import { useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { FamilyCounts, SignalFamily, Trends } from '@/lib/types';
-import { FAMILY_COLORS, FAMILY_LABELS, formatDate, formatMonth } from '@/lib/utils';
-import EmptyState from '@/components/EmptyState';
+import { useState } from 'react'
+import type { Family, MonthPoint, Trends } from '@/lib/types'
+import { FAMILIES, FAMILY_META } from '@/lib/utils'
+import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 interface TrendsTabProps {
-  trends: Trends;
-  byFamily: FamilyCounts;
-  totalSignals: number;
+  trends: Trends
 }
 
-const FAMILIES: SignalFamily[] = ['funding', 'csuite', 'product', 'partnership'];
-
-const TOOLTIP_STYLE: CSSProperties = {
-  backgroundColor: '#12161D',
-  border: '1px solid rgba(255,255,255,0.1)',
+const tooltipStyle = {
+  backgroundColor: '#22242C',
+  border: '1px solid #2E313A',
   borderRadius: 8,
-  color: '#E5EAF2',
+  color: '#F2F3F5',
   fontSize: 12,
-};
+}
 
-export default function TrendsTab({ trends, byFamily, totalSignals }: TrendsTabProps) {
-  const [enabled, setEnabled] = useState<Record<SignalFamily, boolean>>({
+export default function TrendsTab({ trends }: TrendsTabProps) {
+  const [enabled, setEnabled] = useState<Record<Family, boolean>>({
     funding: true,
     csuite: true,
     product: true,
     partnership: true,
-  });
+  })
 
-  const monthData = useMemo(() => {
-    const pts = trends.byMonth.map((p) => ({ ...p, label: formatMonth(p.month) }));
-    return pts.length === 1 ? [pts[0], { ...pts[0] }] : pts;
-  }, [trends.byMonth]);
+  const totalSignals = trends.byMonth.reduce((acc, m) => acc + m.total, 0)
+  const familyTotals = FAMILIES.map((f) => ({
+    family: f,
+    total: trends.byMonth.reduce((acc, m) => acc + m[f], 0),
+  }))
+  const mostActiveFamily = familyTotals.reduce<{ family: Family; total: number } | null>(
+    (best, cur) => (!best || cur.total > best.total ? cur : best),
+    null,
+  )
+  const mostActiveMonth = trends.byMonth.reduce<MonthPoint | null>(
+    (best, cur) => (!best || cur.total > best.total ? cur : best),
+    null,
+  )
 
-  const runData = useMemo(
-    () => trends.byRunDate.map((p) => ({ ...p, label: formatDate(p.date) })),
-    [trends.byRunDate]
-  );
-
-  const mostActiveFamily = useMemo(() => {
-    let best: SignalFamily = 'funding';
-    let bestValue = -1;
-    for (const f of FAMILIES) {
-      if (byFamily[f] > bestValue) {
-        bestValue = byFamily[f];
-        best = f;
-      }
-    }
-    return bestValue > 0 ? FAMILY_LABELS[best] : '—';
-  }, [byFamily]);
-
-  const mostActiveMonth = useMemo(() => {
-    if (trends.byMonth.length === 0) return '—';
-    let best = trends.byMonth[0];
-    for (const p of trends.byMonth) {
-      if (p.total > best.total) best = p;
-    }
-    return formatMonth(best.month);
-  }, [trends.byMonth]);
+  const toggle = (f: Family) => {
+    setEnabled((prev) => ({ ...prev, [f]: !prev[f] }))
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="card p-4">
-          <p className="label-caps">Total Signals</p>
-          <p className="kpi-number mt-1 text-3xl font-semibold text-white">{totalSignals}</p>
+        <div className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8F9C]">Total Signals</p>
+          <p className="mt-1 text-2xl font-semibold text-white">{totalSignals}</p>
         </div>
-        <div className="card p-4">
-          <p className="label-caps">Most Active Family</p>
-          <p className="mt-1 text-3xl font-semibold text-white">{mostActiveFamily}</p>
+        <div className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8F9C]">Most Active Family</p>
+          <p
+            className="mt-1 text-2xl font-semibold"
+            style={{ color: mostActiveFamily ? FAMILY_META[mostActiveFamily.family].color : '#F2F3F5' }}
+          >
+            {mostActiveFamily && mostActiveFamily.total > 0 ? FAMILY_META[mostActiveFamily.family].label : '—'}
+          </p>
         </div>
-        <div className="card p-4">
-          <p className="label-caps">Most Active Month</p>
-          <p className="mt-1 text-3xl font-semibold text-white">{mostActiveMonth}</p>
+        <div className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8F9C]">Most Active Month</p>
+          <p className="mt-1 text-2xl font-semibold text-white">{mostActiveMonth ? mostActiveMonth.month : '—'}</p>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Toggle chart series">
+
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Toggle family series">
         {FAMILIES.map((f) => (
           <button
             key={f}
             type="button"
+            onClick={() => toggle(f)}
             aria-pressed={enabled[f]}
-            onClick={() => setEnabled((prev) => ({ ...prev, [f]: !prev[f] }))}
-            className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-150 ${
-              enabled[f] ? 'border-white/[0.14] text-white' : 'border-white/[0.06] text-[#5B6473]'
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+              enabled[f] ? 'border-[#2E313A] bg-[#1B1D24] text-white' : 'border-[#22242C] bg-transparent text-[#6D717F] opacity-60'
             }`}
           >
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: FAMILY_COLORS[f], opacity: enabled[f] ? 1 : 0.3 }}
-              aria-hidden="true"
-            />
-            {FAMILY_LABELS[f]}
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: FAMILY_META[f].color }} aria-hidden="true" />
+            {FAMILY_META[f].label}
           </button>
         ))}
       </div>
-      <section className="card p-5" aria-label="Signal volume by month">
-        <h2 className="label-caps">Signal Volume by Month</h2>
+
+      <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Signals by month chart">
+        <h2 className="text-sm font-semibold text-[#A6ABB8]">Signals by Month</h2>
         {trends.byMonth.length === 0 ? (
-          <div className="mt-4">
-            <EmptyState icon="📈" title="No monthly data" message="No monthly trend data is available yet." />
-          </div>
+          <p className="mt-16 text-center text-sm text-[#6D717F]">No monthly trend data yet.</p>
         ) : (
-          <div className="mt-4 h-72">
+          <div className="mt-2 h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthData} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fill: '#8B94A7', fontSize: 12 }}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                  tickLine={false}
-                />
-                <YAxis allowDecimals={false} tick={{ fill: '#8B94A7', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <AreaChart data={trends.byMonth} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                <CartesianGrid stroke="#2E313A" strokeDasharray="3 3" />
+                <XAxis dataKey="month" stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 12 }} />
+                <YAxis allowDecimals={false} stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} />
                 {FAMILIES.filter((f) => enabled[f]).map((f) => (
                   <Area
                     key={f}
                     type="monotone"
                     dataKey={f}
-                    name={FAMILY_LABELS[f]}
-                    stackId="1"
-                    stroke={FAMILY_COLORS[f]}
-                    strokeWidth={2}
-                    fill={FAMILY_COLORS[f]}
+                    name={FAMILY_META[f].label}
+                    stackId="fam"
+                    stroke={FAMILY_META[f].color}
+                    fill={FAMILY_META[f].color}
                     fillOpacity={0.25}
-                    isAnimationActive={false}
+                    strokeWidth={2}
+                    dot
                   />
                 ))}
               </AreaChart>
@@ -136,31 +113,25 @@ export default function TrendsTab({ trends, byFamily, totalSignals }: TrendsTabP
           </div>
         )}
       </section>
-      <section className="card p-5" aria-label="Run-over-run totals">
-        <h2 className="label-caps">Run-over-Run Totals</h2>
+
+      <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Run over run totals chart">
+        <h2 className="text-sm font-semibold text-[#A6ABB8]">Run-over-run Totals</h2>
         {trends.byRunDate.length === 0 ? (
-          <div className="mt-4">
-            <EmptyState icon="🗓️" title="No run data" message="No run-over-run data is available yet." />
-          </div>
+          <p className="mt-16 text-center text-sm text-[#6D717F]">No run data yet.</p>
         ) : (
-          <div className="mt-4 h-64">
+          <div className="mt-2 h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={runData} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fill: '#8B94A7', fontSize: 12 }}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                  tickLine={false}
-                />
-                <YAxis allowDecimals={false} tick={{ fill: '#8B94A7', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                <Bar dataKey="total" name="Total signals" fill="#6366F1" radius={[6, 6, 0, 0]} barSize={40} isAnimationActive={false} />
-              </BarChart>
+              <LineChart data={trends.byRunDate} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                <CartesianGrid stroke="#2E313A" strokeDasharray="3 3" />
+                <XAxis dataKey="date" stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 12 }} />
+                <YAxis allowDecimals={false} stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Line type="monotone" dataKey="total" name="Total" stroke="#3BC884" strokeWidth={2} dot />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         )}
       </section>
     </div>
-  );
+  )
 }

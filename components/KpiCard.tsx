@@ -1,71 +1,70 @@
 "use client"
 
-import { useId } from 'react';
-import { Area, AreaChart, ResponsiveContainer } from 'recharts';
-import type { KpiPill } from '@/lib/types';
+import { Area, AreaChart, ResponsiveContainer } from 'recharts'
+import type { KpiPill } from '@/lib/types'
 
 interface KpiCardProps {
-  icon: string;
-  label: string;
-  value: number;
-  accent: string;
-  spark: number[];
-  selected?: boolean;
-  pills?: KpiPill[];
-  onClick: () => void;
+  icon: string
+  label: string
+  value: number
+  accent: string
+  sparkData: number[]
+  pills?: KpiPill[]
+  selected?: boolean
+  onClick: () => void
 }
 
-export default function KpiCard({ icon, label, value, accent, spark, selected = false, pills, onClick }: KpiCardProps) {
-  const rawId = useId();
-  const gid = `spark-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const data = spark.map((v, i) => ({ i, v }));
-
+export default function KpiCard({ icon, label, value, accent, sparkData, pills, selected, onClick }: KpiCardProps) {
+  const base = sparkData.length >= 2 ? sparkData : [sparkData[0] ?? 0, sparkData[0] ?? 0]
+  const points = base.map((v, i) => ({ i, v }))
+  const gradId = `kpi-grad-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`${label}: ${value}. Click to filter signals`}
-      className={`card flex flex-col p-4 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-white/[0.14] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#22C55E]/40 ${
-        selected ? 'border-[#22C55E]/70 ring-1 ring-[#22C55E]/40' : ''
-      }`}
+      className="group flex flex-col rounded-2xl border bg-[#1B1D24] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3BC884]/60"
+      style={{ borderColor: selected ? accent : '#2E313A', boxShadow: selected ? `0 0 0 1px ${accent}` : undefined }}
     >
-      <span className="text-xl" aria-hidden="true">{icon}</span>
-      <span className="kpi-number mt-2 text-4xl font-semibold text-white">{value}</span>
-      <span className="label-caps mt-1.5">{label}</span>
-      {pills && pills.length > 0 && (
-        <span className="mt-2 flex gap-1.5">
+      <div className="flex w-full items-start justify-between">
+        <span className="text-xl" aria-hidden="true">{icon}</span>
+        {selected && (
+          <span
+            className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+            style={{ color: accent, borderColor: `${accent}66`, backgroundColor: `${accent}14` }}
+          >
+            Selected
+          </span>
+        )}
+      </div>
+      <div className="mt-2 text-4xl font-semibold text-white">{value}</div>
+      <div className="mt-1 text-[11px] font-medium uppercase tracking-wider text-[#8A8F9C]">{label}</div>
+      {pills && (
+        <div className="mt-2 flex gap-1.5">
           {pills.map((p) => (
             <span
               key={p.label}
-              className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-              style={{ color: p.color, backgroundColor: `${p.color}1A`, border: `1px solid ${p.color}33` }}
+              className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+              style={{ color: p.color, borderColor: `${p.color}55`, backgroundColor: `${p.color}14` }}
             >
               {p.label} {p.value}
             </span>
           ))}
-        </span>
+        </div>
       )}
-      <span className="mt-3 block h-10 w-full">
+      <div className="mt-3 h-10 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+          <AreaChart data={points} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
             <defs>
-              <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={accent} stopOpacity={0.35} />
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accent} stopOpacity={0.45} />
                 <stop offset="100%" stopColor={accent} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <Area
-              type="monotone"
-              dataKey="v"
-              stroke={accent}
-              strokeWidth={2}
-              fill={`url(#${gid})`}
-              isAnimationActive={false}
-              dot={false}
-            />
+            <Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2} fill={`url(#${gradId})`} isAnimationActive={false} />
           </AreaChart>
         </ResponsiveContainer>
-      </span>
+      </div>
     </button>
-  );
+  )
 }

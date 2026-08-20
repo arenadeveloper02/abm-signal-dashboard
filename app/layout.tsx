@@ -1,25 +1,25 @@
-import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { ArenaEmailProvider } from '@/components/arena-email-provider';
-import { getArenaEmailId } from '@/lib/arena-email';
+import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
+import { Poppins } from 'next/font/google'
+import './globals.css'
+import { ArenaEmailProvider } from '@/components/arena-email-provider'
+import { getArenaEmailId } from '@/lib/arena-email'
 
-const inter = Inter({ subsets: ['latin'] });
+const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
 export const metadata: Metadata = {
   title: 'ABM Signal Tracker',
   description:
-    'Arena-themed ABM analytics dashboard tracking funding, C-suite, product and partnership signals.',
-};
+    'Arena-themed analytics dashboard for ABM signals across funding, C-suite, product and partnership activity.',
+}
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const emailId = await getArenaEmailId();
+  const emailId = await getArenaEmailId()
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen bg-[#0A0C10] text-[#E5EAF2] antialiased`}>
+      <body className={`${poppins.className} bg-[#121318] text-[#F2F3F5] antialiased`}>
         <ArenaEmailProvider emailId={emailId}>{children}</ArenaEmailProvider>
       </body>
     </html>
-  );
+  )
 }

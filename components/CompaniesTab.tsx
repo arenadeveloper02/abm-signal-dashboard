@@ -1,125 +1,120 @@
 "use client"
 
-import { useMemo, useState } from 'react';
-import type { CompanyRow, GlobalFilters, SignalRow } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
-import CompanyDrawer from '@/components/CompanyDrawer';
-import EmptyState from '@/components/EmptyState';
+import { useMemo, useState } from 'react'
+import type { CompanyRow, GlobalFilters, Signal } from '@/lib/types'
+import { formatDate } from '@/lib/utils'
+import CompanyDrawer from '@/components/CompanyDrawer'
 
 interface CompaniesTabProps {
-  companies: CompanyRow[];
-  signals: SignalRow[];
-  search: string;
-  filters: GlobalFilters;
+  companies: CompanyRow[]
+  signals: Signal[]
+  search: string
+  filters: GlobalFilters
 }
 
-type SortDir = 'asc' | 'desc';
+type SortKey = keyof CompanyRow
 
-const COLUMNS: { key: keyof CompanyRow; label: string; numeric: boolean }[] = [
-  { key: 'company', label: 'Company', numeric: false },
-  { key: 'total', label: 'Total Signals', numeric: true },
-  { key: 'funding', label: 'Funding', numeric: true },
-  { key: 'csuite', label: 'C-Suite', numeric: true },
-  { key: 'product', label: 'Product', numeric: true },
-  { key: 'partnership', label: 'Partnership', numeric: true },
-  { key: 'high', label: 'High Conf.', numeric: true },
-  { key: 'latestDate', label: 'Latest Signal', numeric: false },
-];
+const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right' }[] = [
+  { key: 'company', label: 'Company', align: 'left' },
+  { key: 'total', label: 'Total Signals', align: 'right' },
+  { key: 'funding', label: 'Funding', align: 'right' },
+  { key: 'csuite', label: 'C-Suite', align: 'right' },
+  { key: 'product', label: 'Product', align: 'right' },
+  { key: 'partnership', label: 'Partnership', align: 'right' },
+  { key: 'high', label: 'High Conf.', align: 'right' },
+  { key: 'latestDate', label: 'Latest Signal', align: 'right' },
+]
 
 export default function CompaniesTab({ companies, signals, search, filters }: CompaniesTabProps) {
-  const [sortKey, setSortKey] = useState<keyof CompanyRow>('total');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [selected, setSelected] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('total')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [selected, setSelected] = useState<string | null>(null)
 
   const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const filteredRows = companies.filter((c) => {
-      if (q && !c.company.toLowerCase().includes(q)) return false;
-      if (filters.family !== 'all' && c[filters.family] === 0) return false;
-      if (filters.confidence === 'HIGH' && c.high === 0) return false;
-      return true;
-    });
-    const copy = [...filteredRows];
-    copy.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      let cmp = 0;
-      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
-      else cmp = String(av).localeCompare(String(bv));
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-    return copy;
-  }, [companies, search, filters, sortKey, sortDir]);
+    const q = search.trim().toLowerCase()
+    const filtered = companies.filter((c) => {
+      if (q && !c.company.toLowerCase().includes(q)) return false
+      if (filters.family !== 'all' && c[filters.family] === 0) return false
+      return true
+    })
+    return [...filtered].sort((a, b) => {
+      const av = a[sortKey]
+      const bv = b[sortKey]
+      const cmp = typeof av === 'string' && typeof bv === 'string' ? av.localeCompare(bv) : Number(av) - Number(bv)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [companies, search, filters, sortKey, sortDir])
 
-  const handleSort = (key: keyof CompanyRow) => {
+  const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     } else {
-      setSortKey(key);
-      setSortDir(key === 'company' ? 'asc' : 'desc');
+      setSortKey(key)
+      setSortDir(key === 'company' ? 'asc' : 'desc')
     }
-  };
+  }
 
-  const drawerSignals = useMemo(
-    () => (selected ? signals.filter((s) => s.company === selected) : []),
-    [selected, signals]
-  );
+  const drawerSignals = selected ? signals.filter((s) => s.company === selected) : []
 
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-[#8B94A7]">
-        {rows.length} compan{rows.length === 1 ? 'y' : 'ies'} · click a row to see its signals
-      </p>
-      {rows.length === 0 ? (
-        <EmptyState icon="🏢" title="No companies match" message="Adjust your search or filters to see tracked companies." />
-      ) : (
-        <div className="card overflow-hidden">
-          <div className="max-h-[32rem] overflow-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="sticky top-0 z-10 bg-[#12161D]">
-                <tr className="border-b border-white/[0.08]">
-                  {COLUMNS.map((col) => (
-                    <th
-                      key={col.key}
-                      scope="col"
-                      aria-sort={sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      className={`px-4 py-3 ${col.numeric ? 'text-right' : 'text-left'}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleSort(col.key)}
-                        className="label-caps inline-flex items-center gap-1 transition-colors duration-150 hover:text-white"
-                      >
-                        {col.label}
-                        {sortKey === col.key && <span aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                      </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr
-                    key={c.company}
-                    onClick={() => setSelected(c.company)}
-                    className="cursor-pointer border-b border-white/[0.04] transition-colors duration-150 hover:bg-white/[0.04]"
+    <div className="rounded-2xl border border-[#2E313A] bg-[#1B1D24]">
+      <div className="max-h-[70vh] overflow-auto rounded-2xl">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead>
+            <tr>
+              {COLUMNS.map((col) => (
+                <th
+                  key={col.key}
+                  className={`sticky top-0 z-10 border-b border-[#2E313A] bg-[#22242C] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#8A8F9C] ${
+                    col.align === 'right' ? 'text-right' : 'text-left'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(col.key)}
+                    aria-label={`Sort by ${col.label}`}
+                    className="transition-colors hover:text-white"
                   >
-                    <td className="px-4 py-3 font-medium text-white">{c.company}</td>
-                    <td className="kpi-number px-4 py-3 text-right text-[#C2CAD8]">{c.total}</td>
-                    <td className="kpi-number px-4 py-3 text-right text-[#C2CAD8]">{c.funding}</td>
-                    <td className="kpi-number px-4 py-3 text-right text-[#C2CAD8]">{c.csuite}</td>
-                    <td className="kpi-number px-4 py-3 text-right text-[#C2CAD8]">{c.product}</td>
-                    <td className="kpi-number px-4 py-3 text-right text-[#C2CAD8]">{c.partnership}</td>
-                    <td className={`kpi-number px-4 py-3 text-right ${c.high > 0 ? 'font-semibold text-[#EF4444]' : 'text-[#8B94A7]'}`}>{c.high}</td>
-                    <td className="px-4 py-3 text-right text-[#8B94A7]">{formatDate(c.latestDate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                    {col.label}
+                    {sortKey === col.key && <span aria-hidden="true"> {sortDir === 'asc' ? '▲' : '▼'}</span>}
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-[#6D717F]">
+                  No companies match your search or filters.
+                </td>
+              </tr>
+            ) : (
+              rows.map((c) => (
+                <tr
+                  key={c.company}
+                  tabIndex={0}
+                  onClick={() => setSelected(c.company)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') setSelected(c.company)
+                  }}
+                  className="cursor-pointer border-b border-[#22242C] transition-colors last:border-b-0 hover:bg-[#22242C] focus:bg-[#22242C] focus:outline-none"
+                >
+                  <td className="px-4 py-3 font-medium text-white">{c.company}</td>
+                  <td className="px-4 py-3 text-right text-[#D3D6DE]">{c.total}</td>
+                  <td className="px-4 py-3 text-right text-[#D3D6DE]">{c.funding}</td>
+                  <td className="px-4 py-3 text-right text-[#D3D6DE]">{c.csuite}</td>
+                  <td className="px-4 py-3 text-right text-[#D3D6DE]">{c.product}</td>
+                  <td className="px-4 py-3 text-right text-[#D3D6DE]">{c.partnership}</td>
+                  <td className="px-4 py-3 text-right text-[#D3D6DE]">{c.high}</td>
+                  <td className="px-4 py-3 text-right text-[#A6ABB8]">{formatDate(c.latestDate)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
       {selected && <CompanyDrawer company={selected} signals={drawerSignals} onClose={() => setSelected(null)} />}
     </div>
-  );
+  )
 }
