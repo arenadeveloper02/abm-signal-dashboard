@@ -1,20 +1,20 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-20T11:38:52.587Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-20T11:49:49.333Z.
 
 ## Overview
 
-Arena-themed ABM Signal Tracker dashboard that fetches live signal data from a Sim workflow API via a server-side proxy route.
+ABM Signal Tracker — Arena-themed analytics dashboard for ABM signals across funding, C-suite, product and partnership activity, fetching live data from the Sim signals API via a server-side proxy route.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 41
 
 ## Features
 
-- Live data fetching from /api/signals server proxy (Sim workflow endpoint)
+- Live data fetching from /api/signals server proxy (API key kept server-side)
 - Overview, Companies, Signals, Trends and Insights tabs
-- Run selector and client email input in the header
-- Loading skeletons, error state with Retry, and inline API error banners
+- Run selector and client email input in the header with re-fetch
+- Loading skeletons, error state with Retry, and zero-data empty states
 - Refresh Dashboard button with refresh event logging via Prisma
 
 ## Tech Stack
@@ -145,8 +145,21 @@ Arena-themed ABM Signal Tracker dashboard that fetches live signal data from a S
 
 ## Latest Change
 
-- **Updated at:** 2026-08-20T11:38:52.587Z
-- **Request:** Update the existing ABM Signal Tracker dashboard app so it fetches its data from a live API instead of a static data module. Do not redesign the UI — keep the existing Arena dark theme, the top horizontal tab bar (Overview | Companies | Signals | Trends | Insights) and all existing components. Only change the data layer, plus the small additions listed at the end.
+- **Updated at:** 2026-08-20T11:49:49.333Z
+- **Request:** == CRITICAL — BUILD FIX, DO THIS FIRST ==
+The previous edit broke the Vercel build. `npm run build` runs `prisma generate && prisma db push && next build`, and `prisma db push` exits 1 with a potential_dataloss error: the `updatedAt` column was dropped from the `RefreshEvent` model in prisma/schema.prisma while the database still holds 2 non-null values for it.
+
+Fix it this way and only this way:
+1. Restore `updatedAt DateTime @updatedAt` to the `RefreshEvent` model in prisma/schema.prisma so the schema matches the existing database again. The push then becomes a no-op and the build passes with no data loss.
+2. DO NOT add `--accept-data-loss` to the build script. Leave the build script exactly as `prisma generate && prisma db push && next build`.
+
+== STANDING RULE — APPLIES TO THIS EDIT AND EVERY FUTURE EDIT ==
+Do NOT modify prisma/schema.prisma. Do not add, remove, rename or retype any model, field or column. Do not drop database columns. Do not alter migrations or the database at all. This project is a UI and data-fetching task only. If a UI change appears to require a schema change, SKIP that change and leave the schema untouched — never modify the data model to satisfy a UI requirement.
+
+Do not change any other functionality, routing, authentication, or UI beyond what the dashboard instructions below specify.
+
+== DASHBOARD INSTRUCTIONS ==
+Update the existing ABM Signal Tracker dashboard app so it fetches its data from a live API instead of a static data module. Do not redesign the UI — keep the existing Arena dark theme, the top horizontal tab bar (Overview | Companies | Signals | Trends | Insights) and all existing components. Only change the data layer, plus the small additions listed at the end.
 
 == API ==
 Endpoint (POST):
@@ -162,6 +175,8 @@ Body:
   "runId": "",      // blank = all runs for that email
   "family": ""      // blank = all families; else one of funding | csuite | product | partnership
 }
+
+IMPORTANT: send real values only. Never send the literal placeholder strings "example" or "string" for email, runId or family — a placeholder is treated as a real filter value and matches zero rows, returning an empty payload. Omit runId and family (or send empty strings) when no filter is wanted.
 
 The endpoint requires a secret API key, so DO NOT call it directly from the browser. Create a Next.js server-side route handler at /api/signals that reads the key from a server environment variable, forwards the POST to the Sim endpoint, and returns the JSON to the client. The client components fetch /api/signals only. Add .env.example documenting ABM_API_KEY and NEXT_PUBLIC_DEFAULT_EMAIL.
 
