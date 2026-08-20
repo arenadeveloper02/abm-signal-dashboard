@@ -1,0 +1,45 @@
+@import './arena-ds-tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--ds-surface-page);
+  color: var(--ds-text-primary);
+}
+
+.card {
+  @apply rounded-xl border border-white/[0.06] bg-[#12161D];
+}
+
+.label-caps {
+  @apply text-[11px] font-medium uppercase tracking-[0.14em] text-[#8B94A7];
+}
+
+.kpi-number {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
