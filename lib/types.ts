@@ -132,3 +132,14 @@ export interface ParsedCompany {
   location: string
   raw: Record<string, string>
 }
+
+export type AnalyzeStatus = 'completed' | 'partial' | 'failed'
+
+export interface AnalyzeResult {
+  run_id: string
+  file_name: string
+  companies_processed: number
+  signals_by_family: ByFamily
+  total_signals: number
+  status: AnalyzeStatus
+}

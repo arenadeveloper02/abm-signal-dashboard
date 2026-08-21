@@ -2,11 +2,28 @@
 
 import { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import type { ParsedCompany } from '@/lib/types'
+import type { AnalyzeResult, ParsedCompany } from '@/lib/types'
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, '')
 }
+
+const KNOWN_COLUMNS = ['website', 'industry', 'city', 'state', 'country']
+
+function toApiCompany(company: ParsedCompany): Record<string, string> {
+  const result: Record<string, string> = { company_name: company.name }
+  Object.keys(company.raw).forEach((key) => {
+    const normalized = normalizeKey(key)
+    if (normalized === 'company' || normalized === 'companyname') return
+    const value = company.raw[key]
+    if (value === undefined) return
+    const known = KNOWN_COLUMNS.find((col) => normalizeKey(col) === normalized)
+    result[known ?? key] = value
+  })
+  return result
+}
+
+type AnalyzePayload = Partial<AnalyzeResult> & { error?: string }
 
 export default function AccountSignalTrackerClient() {
   const [companies, setCompanies] = useState<ParsedCompany[]>([])
@@ -14,7 +31,9 @@ export default function AccountSignalTrackerClient() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [analyzed, setAnalyzed] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  const [analysisResult, setAnalysisResult] = useState<AnalyzeResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const parseFile = async (file: File) => {
@@ -73,7 +92,8 @@ export default function AccountSignalTrackerClient() {
       setError(null)
       setCompanies(parsed)
       setFileName(file.name)
-      setAnalyzed(false)
+      setAnalysisResult(null)
+      setAnalyzeError(null)
     } catch {
       setError('Could not parse the uploaded file. Please check the file and try again.')
     }
@@ -90,9 +110,64 @@ export default function AccountSignalTrackerClient() {
     setCompanies((prev) => prev.filter((c) => c.id !== id))
   }
 
-  const handleAnalyze = () => {
-    if (companies.length === 0) return
-    setAnalyzed(true)
+  const handleAnalyze = async () => {
+    if (companies.length === 0 || analyzing) return
+    setAnalyzing(true)
+    setAnalyzeError(null)
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companies: companies.map((c) => toApiCompany(c)),
+          fileName,
+          signalTypes: 'funding,csuite,product,partnership',
+          lookbackDays: 90,
+          batchSize: 10,
+        }),
+      })
+      let json: AnalyzePayload = {}
+      try {
+        json = (await res.json()) as AnalyzePayload
+      } catch {
+        json = {}
+      }
+      if (!res.ok) {
+        setAnalyzeError(json.error ?? `Analysis failed with status ${res.status}`)
+        return
+      }
+      if (json.error) {
+        setAnalyzeError(json.error)
+        return
+      }
+      if (
+        typeof json.run_id !== 'string' ||
+        typeof json.total_signals !== 'number' ||
+        !json.signals_by_family
+      ) {
+        setAnalyzeError('Unexpected response from the analyze API')
+        return
+      }
+      setAnalysisResult({
+        run_id: json.run_id,
+        file_name: typeof json.file_name === 'string' ? json.file_name : fileName,
+        companies_processed:
+          typeof json.companies_processed === 'number' ? json.companies_processed : companies.length,
+        signals_by_family: {
+          funding: json.signals_by_family.funding ?? 0,
+          csuite: json.signals_by_family.csuite ?? 0,
+          product: json.signals_by_family.product ?? 0,
+          partnership: json.signals_by_family.partnership ?? 0,
+        },
+        total_signals: json.total_signals,
+        status:
+          json.status === 'partial' || json.status === 'failed' ? json.status : 'completed',
+      })
+    } catch {
+      setAnalyzeError('Could not reach the analyze API. Check your connection and try again.')
+    } finally {
+      setAnalyzing(false)
+    }
   }
 
   const handleRefresh = () => {
@@ -105,8 +180,8 @@ export default function AccountSignalTrackerClient() {
     return companies.filter((c) => c.name.toLowerCase().includes(q))
   }, [companies, search])
 
-  const subtitle = analyzed
-    ? `Analysis loaded for ${companies.length} companies from ${fileName}`
+  const subtitle = analysisResult
+    ? `${analysisResult.total_signals} signals found · Funding ${analysisResult.signals_by_family.funding} · C-Suite ${analysisResult.signals_by_family.csuite} · Product ${analysisResult.signals_by_family.product} · Partnership ${analysisResult.signals_by_family.partnership}`
     : 'No analysis loaded yet'
 
   return (
@@ -121,6 +196,11 @@ export default function AccountSignalTrackerClient() {
         <div>
           <h1 className="text-2xl font-semibold">Account Signal Tracker</h1>
           <p className="mt-1 text-sm">{subtitle}</p>
+          {analysisResult && analysisResult.status === 'partial' && (
+            <p className="mt-1 text-xs text-[#FB8145]" role="status">
+              Some companies could not be matched — results may be incomplete.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -206,13 +286,33 @@ export default function AccountSignalTrackerClient() {
             </p>
             <button
               type="button"
-              onClick={handleAnalyze}
-              disabled={companies.length === 0}
-              className="rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
+              onClick={() => void handleAnalyze()}
+              disabled={companies.length === 0 || analyzing}
+              aria-busy={analyzing}
+              className="flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              Analyze Companies
+              {analyzing && (
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                />
+              )}
+              {analyzing ? `Analyzing ${companies.length} companies...` : 'Analyze Companies'}
             </button>
           </div>
+
+          {analyzing && (
+            <p className="mt-3 text-xs" role="status">
+              Analyzing {companies.length} companies... This can take several minutes for large
+              lists — keep this tab open.
+            </p>
+          )}
+
+          {analyzeError && (
+            <p className="mt-3 text-sm text-[#F31A1A]" role="alert">
+              {analyzeError}
+            </p>
+          )}
 
           <div className="mt-4 max-h-96 overflow-y-auto rounded border">
             <ul>
