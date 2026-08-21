@@ -8,16 +8,16 @@ import { getArenaEmailId } from '@/lib/arena-email'
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
 export const metadata: Metadata = {
-  title: 'ABM Signal Tracker',
+  title: 'Account Signal Tracker',
   description:
-    'Arena-themed analytics dashboard for ABM signals across funding, C-suite, product and partnership activity.',
+    'Upload a company list (CSV or XLSX) and track ABM account signals across funding, C-suite, product and partnership activity.',
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const emailId = await getArenaEmailId()
   return (
     <html lang="en">
-      <body className={`${poppins.className} bg-[#121318] text-[#F2F3F5] antialiased`}>
+      <body className={`${poppins.className} antialiased`}>
         <ArenaEmailProvider emailId={emailId}>{children}</ArenaEmailProvider>
       </body>
     </html>

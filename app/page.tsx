@@ -1,8 +1,7 @@
-import DashboardClient from '@/components/DashboardClient'
+import AccountSignalTrackerClient from '@/components/AccountSignalTrackerClient'
 
 export const dynamic = 'force-dynamic'
 
 export default function HomePage() {
-  const defaultEmail = process.env.NEXT_PUBLIC_DEFAULT_EMAIL ?? 'sakshi.mishra@position2.com'
-  return <DashboardClient defaultEmail={defaultEmail} />
+  return <AccountSignalTrackerClient />
 }

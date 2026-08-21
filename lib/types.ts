@@ -125,3 +125,10 @@ export interface KpiPill {
   value: number
   color: string
 }
+
+export interface ParsedCompany {
+  id: string
+  name: string
+  location: string
+  raw: Record<string, string>
+}

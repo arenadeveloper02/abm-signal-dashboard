@@ -1,21 +1,24 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-20T11:49:49.333Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-21T07:06:12.345Z.
 
 ## Overview
 
-ABM Signal Tracker — Arena-themed analytics dashboard for ABM signals across funding, C-suite, product and partnership activity, fetching live data from the Sim signals API via a server-side proxy route.
+ABM Signal Tracker — redesigned entry page 'Account Signal Tracker' with breadcrumb, header bar (Refresh Dashboard + company search), empty state, CSV/XLSX drag-and-drop upload zone, parsed company list with per-row Remove, and a light default theme. Files changed: app/page.tsx (renders new AccountSignalTrackerClient instead of old DashboardClient), components/AccountSignalTrackerClient.tsx (new — full entry page UI, file parsing via xlsx, column detection, location combining), lib/types.ts (added ParsedCompany type only; all existing types untouched), app/layout.tsx (removed dark body classes only), app/globals.css (removed dark-theme rules; light defaults from tokens), tailwind.config.ts (removed custom color extensions), package.json (added xlsx dependency), lib/actions.ts (unchanged echo), prisma/schema.prisma (unchanged — RefreshEvent model preserved, no columns edited).
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 41
+**File count:** 42
 
 ## Features
 
-- Live data fetching from /api/signals server proxy (API key kept server-side)
-- Overview, Companies, Signals, Trends and Insights tabs
-- Run selector and client email input in the header with re-fetch
-- Loading skeletons, error state with Retry, and zero-data empty states
-- Refresh Dashboard button with refresh event logging via Prisma
+- Breadcrumb: Agents > Account Signal Tracking
+- Page header with title, 'No analysis loaded yet' subtitle, Refresh Dashboard action and company search
+- Centered empty state when no companies are configured
+- Dashed-border upload zone with drag-and-drop and click-to-browse for CSV and XLSX
+- Company-name column detection (Company / Company_Name / Company Name) with automatic City/State/Country location combining
+- Count line 'N companies ready to import · filename' with Analyze Companies button (disabled until a file is parsed)
+- Bordered scrollable parsed-company list with index, name and Remove action
+- Light default theme (dark styling removed)
 
 ## Tech Stack
 
@@ -56,6 +59,7 @@ ABM Signal Tracker — Arena-themed analytics dashboard for ABM signals across f
 
 ### Components
 
+- `components/AccountSignalTrackerClient.tsx`
 - `components/Badges.tsx`
 - `components/CompaniesTab.tsx`
 - `components/CompanyDrawer.tsx`
@@ -112,6 +116,7 @@ ABM Signal Tracker — Arena-themed analytics dashboard for ABM signals across f
 - `app/layout.tsx`
 - `app/not-found.tsx`
 - `app/page.tsx`
+- `components/AccountSignalTrackerClient.tsx`
 - `components/Badges.tsx`
 - `components/CompaniesTab.tsx`
 - `components/CompanyDrawer.tsx`
@@ -145,61 +150,54 @@ ABM Signal Tracker — Arena-themed analytics dashboard for ABM signals across f
 
 ## Latest Change
 
-- **Updated at:** 2026-08-20T11:49:49.333Z
-- **Request:** == CRITICAL — BUILD FIX, DO THIS FIRST ==
-The previous edit broke the Vercel build. `npm run build` runs `prisma generate && prisma db push && next build`, and `prisma db push` exits 1 with a potential_dataloss error: the `updatedAt` column was dropped from the `RefreshEvent` model in prisma/schema.prisma while the database still holds 2 non-null values for it.
+- **Updated at:** 2026-08-21T07:06:12.345Z
+- **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
-Fix it this way and only this way:
-1. Restore `updatedAt DateTime @updatedAt` to the `RefreshEvent` model in prisma/schema.prisma so the schema matches the existing database again. The push then becomes a no-op and the build passes with no data loss.
-2. DO NOT add `--accept-data-loss` to the build script. Leave the build script exactly as `prisma generate && prisma db push && next build`.
+Changes to implement:
 
-== STANDING RULE — APPLIES TO THIS EDIT AND EVERY FUTURE EDIT ==
-Do NOT modify prisma/schema.prisma. Do not add, remove, rename or retype any model, field or column. Do not drop database columns. Do not alter migrations or the database at all. This project is a UI and data-fetching task only. If a UI change appears to require a schema change, SKIP that change and leave the schema untouched — never modify the data model to satisfy a UI requirement.
+Remove , what you have build earlier , we will start with new design 
 
-Do not change any other functionality, routing, authentication, or UI beyond what the dashboard instructions below specify.
+1. Create the first page (entry page) — "Account Signal Tracker" — with this exact layout, top to bottom:
 
-== DASHBOARD INSTRUCTIONS ==
-Update the existing ABM Signal Tracker dashboard app so it fetches its data from a live API instead of a static data module. Do not redesign the UI — keep the existing Arena dark theme, the top horizontal tab bar (Overview | Companies | Signals | Trends | Insights) and all existing components. Only change the data layer, plus the small additions listed at the end.
+   a. Breadcrumb: `Agents > Account Signal Tracking`
 
-== API ==
-Endpoint (POST):
-https://sim.ai/api/workflows/5ecfc0da-795c-430d-be4e-48888ee6217a/execute
+   b. Page header bar:
+      - Title: "Account Signal Tracker"
+      - Subtitle below the title: "No analysis loaded yet" (replace with the loaded state once an analysis exists)
+      - Right side of the header: a "Refresh Dashboard" action and a "Search companies..." input
+      - A horizontal rule under the header bar
 
-Headers:
-  Content-Type: application/json
-  X-API-Key: <sk-sim--yjpBU3_XaUJUQ5EOIb6xdthczVfR00J>
+   c. Empty state (shown when no companies are loaded), centered:
+      - Heading: "No companies are currently configured"
+      - Body text: "Upload a company list (CSV or XLSX) to start tracking ABM signals. Columns such as Company Name, City, State and Country will be combined automatically."
 
-Body:
-{
-  "email": sakshi.mishra@position2.com,
-  "runId": "",      // blank = all runs for that email
-  "family": ""      // blank = all families; else one of funding | csuite | product | partnership
-}
+   d. Upload zone — a large rectangle with a dashed border:
+      - "Drag and drop your company file here"
+      - Smaller line under it: "Supported formats: CSV, XLSX"
+      - An "Upload Companies" button inside the zone
+      - Accept both CSV and XLSX; support drag-and-drop and click-to-browse
 
-IMPORTANT: send real values only. Never send the literal placeholder strings "example" or "string" for email, runId or family — a placeholder is treated as a real filter value and matches zero rows, returning an empty payload. Omit runId and family (or send empty strings) when no filter is wanted.
+   e. After a file is parsed, below the upload zone:
+      - Left: a count line reading "{N} companies ready to import · {filename}" (e.g. "291 companies ready to import · csg_target_accounts.csv")
+      - Right, on the same line: an "Analyze Companies" button
+      - The Analyze Companies button is the only analysis trigger on the page, and is disabled until a file has been uploaded and parsed
 
-The endpoint requires a secret API key, so DO NOT call it directly from the browser. Create a Next.js server-side route handler at /api/signals that reads the key from a server environment variable, forwards the POST to the Sim endpoint, and returns the JSON to the client. The client components fetch /api/signals only. Add .env.example documenting ABM_API_KEY and NEXT_PUBLIC_DEFAULT_EMAIL.
+   f. Below that, a bordered, scrollable list of the parsed companies — one row per company:
+      - Left: the row index number
+      - Middle: the company name
+      - Right: a "Remove" action that deletes that company from the list before analysis (and decrements the count in (e))
 
-== RESPONSE SHAPE ==
-The API returns the workflow execution result; the dashboard payload is the response body (unwrap output/result if the executor nests it). Payload:
-- meta: { email, runId, family, generatedAt, rowsReturned, rowsAllRuns, families[], availableRuns: [ { run_id, run_date, rows, families[] } ] }
-- kpis: { companiesWithSignals, totalSignals, highAlerts, confidenceHigh, confidenceMedium, confidenceLow, csuiteChanges, funding, mergersAcquisitions, ipo, grants, debtFinancing, productLaunches, partnerships }
-- byFamily: { funding, csuite, product, partnership }
-- byType: { FUNDING_ROUND, IPO_SIGNAL, M_AND_A, GRANT, DEBT_FINANCING, PUBLIC_OFFERING, ... }
-- byConfidence: { HIGH, MEDIUM, LOW, UNKNOWN }
-- companies: [ { company, total, funding, csuite, product, partnership, high, latestDate } ]
-- signals: [ { company, family, signal_type, date, source_name, source_url, summary, confidence, run_id, run_date } ]  // newest first
-- insights: [ ...same shape as signals, HIGH confidence only, max 25 ]
-- trends: { byRunDate: [ { date, total, funding, csuite, product, partnership } ], byMonth: [ { month, total, funding, csuite, product, partnership } ] }
+2. Column handling on parse: detect the company-name column regardless of header variant (Company, Company_Name, Company Name). If City, State and Country columns are present, combine them into a single location value automatically. Keep all other columns from the uploaded file available on the parsed record.
 
-Note: the KPI card previously bound to kpis.companiesTracked must now bind to kpis.companiesWithSignals, and its label should read COMPANIES WITH SIGNALS. Signal source fields renamed: signals[].source -> signals[].source_name and signals[].url -> signals[].source_url.
+3. Theme: switch the UI from the current dark theme to a light theme.
+   - Remove the dark theme styling, variables, and classes.
+   - Use the framework/library default styling everywhere — no custom colors, gradients, or custom palette.
+   - Plain light background, default text colors, default borders. Keep all defaults as-is.
 
-== BEHAVIOUR CHANGES ==
-1. Fetch on mount and render loading skeletons while in flight. Show a clear error state with a Retry button if the request fails or returns a non-200.
-2. The existing Refresh Dashboard button re-fetches from the API and shows the loading shimmer. Update the "Updated <timestamp>" in the header from meta.generatedAt on every successful fetch.
-3. Add a run selector in the header, populated from meta.availableRuns, showing each run's date, row count and families. Selecting one re-fetches with that runId; an "All runs" option sends a blank runId and is the default.
-4. Add an email/client input (or selector) in the header, defaulting to NEXT_PUBLIC_DEFAULT_EMAIL. Changing it re-fetches.
-5. If the payload contains an error field (e.g. "email is required"), render that message as an inline banner instead of empty charts.
-6. Handle the empty/zero-data case gracefully on every tab — zero states and flat baselines, never fabricated numbers.
+Constraints:
 
-CRITICAL: do not change the visual design, the Arena dark palette, or the top-tab layout. No left sidebar. Only the data layer and the additions above.
+Only touch the files/functions directly related to the points above.
+Do not change variable names, code style, or structure outside the scope of these changes.
+Do not add extra features, optimizations, or refactors that weren't requested.
+If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
+After implementing, list exactly which files and lines were changed, and why.
