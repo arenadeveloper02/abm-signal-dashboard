@@ -23,7 +23,7 @@ function toApiCompany(company: ParsedCompany): Record<string, string> {
   return result
 }
 
-type AnalyzePayload = Partial<AnalyzeResult> & { error?: string }
+type AnalyzePayload = Partial<AnalyzeResult> & { error?: string; missing?: string[] }
 
 export default function AccountSignalTrackerClient() {
   const [companies, setCompanies] = useState<ParsedCompany[]>([])
@@ -133,6 +133,12 @@ export default function AccountSignalTrackerClient() {
         json = {}
       }
       if (!res.ok) {
+        if (res.status === 500 && Array.isArray(json.missing) && json.missing.length > 0) {
+          setAnalyzeError(
+            `Missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}. Add ${json.missing.length === 1 ? 'it' : 'them'} to .env.local and restart the server.`
+          )
+          return
+        }
         setAnalyzeError(json.error ?? `Analysis failed with status ${res.status}`)
         return
       }
@@ -340,11 +346,20 @@ export default function AccountSignalTrackerClient() {
                   </li>
                 )
               })}
-              {visibleCompanies.length === 0 && (
-                <li className="px-4 py-6 text-center text-sm">No companies match your search.</li>
-              )}
             </ul>
           </div>
+
+          {analysisResult && (
+            <div className="mt-6 rounded border p-4">
+              <p className="text-sm font-medium">
+                Analysis {analysisResult.status} · Run {analysisResult.run_id}
+              </p>
+              <p className="mt-1 text-xs">
+                {analysisResult.companies_processed} companies processed from{' '}
+                {analysisResult.file_name === '' ? 'the uploaded file' : analysisResult.file_name}
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>
