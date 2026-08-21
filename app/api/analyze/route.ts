@@ -6,9 +6,16 @@ export const maxDuration = 300
 const DEFAULT_ABM_API_URL =
   'https://agent.thearena.ai/api/workflows/9cfb7d2e-8290-424d-b23b-6b46e9a6749c/execute'
 
+const DEFAULT_ABM_API_KEY = 'sk-sim-V-QrZM3gSrgc4RmnWf5gwHl-s6debMJt'
+
 function getApiUrl(): string {
   const fromEnv = process.env.ABM_API_URL
   return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_ABM_API_URL
+}
+
+function getApiKey(): string {
+  const fromEnv = process.env.ABM_API_KEY
+  return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_ABM_API_KEY
 }
 
 function isValidHttpUrl(raw: string): boolean {
@@ -31,7 +38,7 @@ function maskUrl(raw: string): string {
 
 export async function GET() {
   const apiUrl = getApiUrl()
-  const apiKey = process.env.ABM_API_KEY
+  const apiKey = getApiKey()
   const urlSet = isValidHttpUrl(apiUrl)
   const keySet = typeof apiKey === 'string' && apiKey.length > 0
   return NextResponse.json({
@@ -44,7 +51,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const apiUrl = getApiUrl()
-  const apiKey = process.env.ABM_API_KEY
+  const apiKey = getApiKey()
   const urlSet = apiUrl.length > 0
   const keySet = typeof apiKey === 'string' && apiKey.length > 0
 

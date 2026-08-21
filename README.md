@@ -1,76 +1,38 @@
-# ABM Signal Tracker
+# abm-signal-dashboard
 
-<<<<<<< HEAD
-Arena-themed dark analytics dashboard for account-based marketing (ABM) signals — funding rounds, C-suite changes, product launches and partnerships — driven by a typed workflow payload.
-
-## Features
-
-- **Overview** — KPI cards with sparklines, confidence pills, click-to-filter, byFamily donut and top signal types bar
-- **Companies** — searchable, sortable table with a per-company signal drawer
-- **Signals** — filterable feed (family, type, confidence, date range, free text) with expandable summaries and source links
-- **Trends** — stacked area by month, run-over-run bar chart, per-family legend toggles and a summary strip
-- **Insights** — callout tiles plus family-grouped, ranked HIGH-confidence insight cards
-- Global header search + filters, refresh with loading shimmer, empty states, keyboard-accessible tabs
-- Arena email gate (middleware + access-denied page) and refresh events logged to Postgres via Prisma
-
-## Tech stack
-
-- Next.js ^15.3.3 (App Router) · React ^19 · TypeScript (strict)
-- Tailwind CSS v3 · Recharts
-- Prisma + Neon Postgres (RefreshEvent audit log)
-=======
-Arena-themed dark analytics dashboard that tracks ABM signals — funding, C-suite changes, product launches, and partnerships — with KPI cards, trend charts, a company table, a filterable signal feed, and insight callouts.
+ABM Signal Tracker — upload a company list (CSV or XLSX) and track ABM account signals across funding, C-suite, product and partnership activity.
 
 ## Features
 
-- Sticky header with live status dot, updated timestamp + relative-time pill, green Refresh button, global Filters control, and company search
-- Horizontal top tab navigation (Overview | Companies | Signals | Trends | Insights) — no sidebar
-- Overview: KPI grid with sparklines, confidence pills, family donut and top signal types bar chart
-- Companies: searchable, sortable table with per-company signal drawer
-- Signals: fully filterable feed with chips, confidence badges, expandable summaries, source links
-- Trends: stacked area by month + run-over-run line chart with legend toggles
-- Insights: callout tiles and family-grouped high-confidence signal cards
-- Arena email gate (middleware + cookie), loading skeletons, empty states, keyboard-accessible tabs
+- Upload company lists (CSV/XLSX) and analyze accounts for buying signals
+- Overview, Companies, Signals, Trends and Insights tabs
+- KPI cards, family/confidence breakdowns and trend charts (Recharts)
+- Analyze API proxy to the ABM workflow endpoint with server-side API key
 
-## Tech stack
+## Tech Stack
 
-- Next.js 15 (App Router) · React 19 · TypeScript (strict)
-- Tailwind CSS 3 · Recharts · Poppins via next/font
-- Prisma + Neon Postgres (schema provisioned; dashboard data is served from a typed data module that can be swapped for an API fetch)
->>>>>>> 95963cd (Initial commit)
+- Next.js ^15.3.3 (App Router)
+- React ^19.0.0
+- Tailwind CSS v3
+- TypeScript
+- Prisma + PostgreSQL (Neon on Vercel)
 
-## Local setup
+## Local Setup
 
-```bash
-npm install
-<<<<<<< HEAD
-cp .env.example .env   # set DATABASE_URL to a Postgres connection string
-npm run dev
-```
+1. `npm install`
+2. Copy `.env.example` to `.env` and set:
+   - `DATABASE_URL` — Postgres connection string (Neon)
+   - `ABM_API_URL` — optional, defaults to the built-in ABM workflow URL
+   - `ABM_API_KEY` — ABM workflow API key (a working default is baked into the analyze route; the env var overrides it)
+3. `npm run dev`
 
-Open http://localhost:3000/?emailId=you@example.com — the `emailId` query param is required by the Arena email gate.
+## Deploy Notes
 
-## Build & deploy
+- Vercel build runs `prisma generate && prisma db push && next build`
+- `DATABASE_URL` is injected by the Vercel Neon integration
+- Set `ABM_API_KEY` in Vercel project environment variables to override the built-in default key used by `app/api/analyze/route.ts`
 
-```bash
-npm run build   # runs prisma generate && prisma db push && next build
-npm start
-```
+## Changes in this edit
 
-On Vercel with a connected Neon database, `DATABASE_URL` is injected automatically.
-
-## Data
-
-The dashboard is seeded from `lib/data.ts`, a typed static module mirroring the upstream workflow payload. Swap `getDashboardPayload()` for an API fetch to go live — the module boundary is intentionally clean.
-=======
-cp .env.example .env   # set DATABASE_URL
-npm run dev
-```
-
-Build: `npm run build` (runs `prisma generate && prisma db push && next build`).
-
-## Deploy notes
-
-- On Vercel with Neon connected, `DATABASE_URL` is injected automatically.
-- The app must be embedded in an iframe with `?emailId=...`; middleware persists it in the `arena_email_id` cookie and rewrites to `/access-denied` when absent.
->>>>>>> 95963cd (Initial commit)
+- `app/api/analyze/route.ts`: added `DEFAULT_ABM_API_KEY` constant and `getApiKey()` helper (falls back to the provided key when `ABM_API_KEY` env var is unset); `GET` and `POST` now resolve the key via `getApiKey()`, so the "ABM API not configured" error no longer occurs.
+- `.env.example`: documented `ABM_API_URL` and `ABM_API_KEY` environment variables.
