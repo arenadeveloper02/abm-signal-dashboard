@@ -2,7 +2,9 @@
 
 import { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import type { AnalyzeResult, ParsedCompany } from '@/lib/types'
+import type { AnalyzeResult, ParsedCompany, StoredSignal, StoredSignalsResult } from '@/lib/types'
+import { formatDate } from '@/lib/utils'
+import EmptyState from '@/components/EmptyState'
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, '')
@@ -25,6 +27,8 @@ function toApiCompany(company: ParsedCompany): Record<string, string> {
 
 type AnalyzePayload = Partial<AnalyzeResult> & { error?: string; missing?: string[] }
 
+type StoredPayload = Partial<StoredSignalsResult> & { error?: string; missing?: string[] }
+
 export default function AccountSignalTrackerClient() {
   const [companies, setCompanies] = useState<ParsedCompany[]>([])
   const [fileName, setFileName] = useState('')
@@ -34,6 +38,9 @@ export default function AccountSignalTrackerClient() {
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResult | null>(null)
+  const [fetchingStored, setFetchingStored] = useState(false)
+  const [storedError, setStoredError] = useState<string | null>(null)
+  const [storedResult, setStoredResult] = useState<StoredSignalsResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const parseFile = async (file: File) => {
@@ -94,6 +101,8 @@ export default function AccountSignalTrackerClient() {
       setFileName(file.name)
       setAnalysisResult(null)
       setAnalyzeError(null)
+      setStoredResult(null)
+      setStoredError(null)
     } catch {
       setError('Could not parse the uploaded file. Please check the file and try again.')
     }
@@ -176,6 +185,62 @@ export default function AccountSignalTrackerClient() {
     }
   }
 
+  const handleFetchStored = async () => {
+    if (companies.length === 0 || analyzing || fetchingStored) return
+    setFetchingStored(true)
+    setStoredError(null)
+    try {
+      const res = await fetch('/api/stored-signals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companies: companies.map((c) => ({ company_name: c.name })),
+          limit: 1000,
+        }),
+      })
+      let json: StoredPayload = {}
+      try {
+        json = (await res.json()) as StoredPayload
+      } catch {
+        json = {}
+      }
+      if (!res.ok) {
+        if (res.status === 500 && Array.isArray(json.missing) && json.missing.length > 0) {
+          setStoredError(
+            `Missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}. Add ${json.missing.length === 1 ? 'it' : 'them'} to .env.local and restart the server.`
+          )
+          return
+        }
+        setStoredError(json.error ?? `Fetching stored signals failed with status ${res.status}`)
+        return
+      }
+      if (json.error) {
+        setStoredError(json.error)
+        return
+      }
+      if (!Array.isArray(json.signals) || typeof json.total !== 'number') {
+        setStoredError('Unexpected response from the signal read API')
+        return
+      }
+      setStoredResult({
+        total: json.total,
+        returned: typeof json.returned === 'number' ? json.returned : json.signals.length,
+        counts_by_family: {
+          funding: json.counts_by_family?.funding ?? 0,
+          csuite: json.counts_by_family?.csuite ?? 0,
+          product: json.counts_by_family?.product ?? 0,
+          partnership: json.counts_by_family?.partnership ?? 0,
+        },
+        unmatched_inputs: Array.isArray(json.unmatched_inputs) ? json.unmatched_inputs : [],
+        signals: json.signals as StoredSignal[],
+      })
+    } catch {
+      setStoredError('Could not reach the signal read API. Check your connection and try again.')
+    } finally {
+      setFetchingStored(false)
+    }
+  }
+
   const handleRefresh = () => {
     setError(null)
   }
@@ -187,7 +252,7 @@ export default function AccountSignalTrackerClient() {
   }, [companies, search])
 
   const subtitle = analysisResult
-    ? `${analysisResult.total_signals} signals found · Funding ${analysisResult.signals_by_family.funding} · C-Suite ${analysisResult.signals_by_family.csuite} · Product ${analysisResult.signals_by_family.product} · Partnership ${analysisResult.signals_by_family.partnership}`
+    ? `${analysisResult.total_signals} signals found \u00b7 Funding ${analysisResult.signals_by_family.funding} \u00b7 C-Suite ${analysisResult.signals_by_family.csuite} \u00b7 Product ${analysisResult.signals_by_family.product} \u00b7 Partnership ${analysisResult.signals_by_family.partnership}`
     : 'No analysis loaded yet'
 
   return (
@@ -204,7 +269,7 @@ export default function AccountSignalTrackerClient() {
           <p className="mt-1 text-sm">{subtitle}</p>
           {analysisResult && analysisResult.status === 'partial' && (
             <p className="mt-1 text-xs text-[#FB8145]" role="status">
-              Some companies could not be matched — results may be incomplete.
+              Some companies could not be matched \u2014 results may be incomplete.
             </p>
           )}
         </div>
@@ -288,35 +353,58 @@ export default function AccountSignalTrackerClient() {
         <>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">
-              {companies.length} companies ready to import · {fileName}
+              {companies.length} companies ready to import \u00b7 {fileName}
             </p>
-            <button
-              type="button"
-              onClick={() => void handleAnalyze()}
-              disabled={companies.length === 0 || analyzing}
-              aria-busy={analyzing}
-              className="flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
-              {analyzing && (
-                <span
-                  aria-hidden="true"
-                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
-                />
-              )}
-              {analyzing ? `Analyzing ${companies.length} companies...` : 'Analyze Companies'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleFetchStored()}
+                disabled={companies.length === 0 || analyzing || fetchingStored}
+                aria-busy={fetchingStored}
+                className="flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {fetchingStored && (
+                  <span
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  />
+                )}
+                {fetchingStored ? 'Fetching stored signals...' : 'Fetch Stored Signals'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAnalyze()}
+                disabled={companies.length === 0 || analyzing}
+                aria-busy={analyzing}
+                className="flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {analyzing && (
+                  <span
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  />
+                )}
+                {analyzing ? `Analyzing ${companies.length} companies...` : 'Analyze Companies'}
+              </button>
+            </div>
           </div>
 
           {analyzing && (
             <p className="mt-3 text-xs" role="status">
               Analyzing {companies.length} companies... This can take several minutes for large
-              lists — keep this tab open.
+              lists \u2014 keep this tab open.
             </p>
           )}
 
           {analyzeError && (
             <p className="mt-3 text-sm text-[#F31A1A]" role="alert">
               {analyzeError}
+            </p>
+          )}
+
+          {storedError && (
+            <p className="mt-3 text-sm text-[#F31A1A]" role="alert">
+              {storedError}
             </p>
           )}
 
@@ -333,13 +421,14 @@ export default function AccountSignalTrackerClient() {
                     <span className="flex-1 text-sm">
                       {company.name}
                       {company.location !== '' && (
-                        <span className="ml-2 text-xs">({company.location})</span>
+                        <span className="ml-2 text-xs text-[#6D717F]">{company.location}</span>
                       )}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleRemove(company.id)}
-                      className="rounded border px-3 py-1 text-xs font-medium"
+                      aria-label={`Remove ${company.name}`}
+                      className="rounded border px-2 py-1 text-xs font-medium"
                     >
                       Remove
                     </button>
@@ -349,16 +438,71 @@ export default function AccountSignalTrackerClient() {
             </ul>
           </div>
 
-          {analysisResult && (
-            <div className="mt-6 rounded border p-4">
-              <p className="text-sm font-medium">
-                Analysis {analysisResult.status} · Run {analysisResult.run_id}
+          {storedResult && (
+            <section className="mt-8" aria-label="Stored signals">
+              <h2 className="text-lg font-medium">Stored Signals</h2>
+              <p className="mt-1 text-sm">
+                {storedResult.total} total signal{storedResult.total === 1 ? '' : 's'} \u00b7{' '}
+                {storedResult.returned} returned \u00b7 Funding {storedResult.counts_by_family.funding}{' '}
+                \u00b7 C-Suite {storedResult.counts_by_family.csuite} \u00b7 Product{' '}
+                {storedResult.counts_by_family.product} \u00b7 Partnership{' '}
+                {storedResult.counts_by_family.partnership}
               </p>
-              <p className="mt-1 text-xs">
-                {analysisResult.companies_processed} companies processed from{' '}
-                {analysisResult.file_name === '' ? 'the uploaded file' : analysisResult.file_name}
-              </p>
-            </div>
+              {storedResult.unmatched_inputs.length > 0 && (
+                <p className="mt-2 text-xs text-[#6D717F]" role="status">
+                  No stored signals found for: {storedResult.unmatched_inputs.join(', ')}
+                </p>
+              )}
+              {storedResult.signals.length === 0 ? (
+                <div className="mt-4">
+                  <EmptyState
+                    icon="\ud83d\udd0d"
+                    title="No stored signals"
+                    message="No stored signals exist for the selected companies."
+                  />
+                </div>
+              ) : (
+                <div className="mt-4 overflow-x-auto rounded border">
+                  <table className="w-full min-w-[64rem] text-left text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="px-4 py-2 font-medium">Company</th>
+                        <th className="px-4 py-2 font-medium">Family</th>
+                        <th className="px-4 py-2 font-medium">Signal Type</th>
+                        <th className="px-4 py-2 font-medium">Summary</th>
+                        <th className="px-4 py-2 font-medium">Confidence</th>
+                        <th className="px-4 py-2 font-medium">Announcement Date</th>
+                        <th className="px-4 py-2 font-medium">Last Seen</th>
+                        <th className="px-4 py-2 font-medium">Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storedResult.signals.map((s, i) => (
+                        <tr key={s.id !== '' && s.id !== undefined ? s.id : `stored-${i}`} className="border-b last:border-b-0 align-top">
+                          <td className="px-4 py-2 font-medium">{s.company_name}</td>
+                          <td className="px-4 py-2">{s.signal_family}</td>
+                          <td className="px-4 py-2">{s.signal_type}</td>
+                          <td className="px-4 py-2 max-w-md">{s.summary}</td>
+                          <td className="px-4 py-2">{s.confidence}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">{formatDate(s.announcement_date)}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">{formatDate(s.last_seen_at)}</td>
+                          <td className="px-4 py-2">
+                            <a
+                              href={s.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium underline"
+                            >
+                              {s.source_name} \u2197
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           )}
         </>
       )}

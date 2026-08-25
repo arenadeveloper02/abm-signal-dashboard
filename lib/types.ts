@@ -143,3 +143,39 @@ export interface AnalyzeResult {
   total_signals: number
   status: AnalyzeStatus
 }
+
+export interface StoredSignalsCounts {
+  funding: number
+  csuite: number
+  product: number
+  partnership: number
+}
+
+export interface StoredSignal {
+  id: string
+  company_id: string
+  company_name: string
+  company_key: string
+  signal_family: string
+  signal_key: string
+  signal_type: string
+  company: string
+  summary: string
+  source_name: string
+  source_url: string
+  confidence: string
+  announcement_date: string
+  run_id: string
+  run_date: string
+  first_seen_at: string
+  last_seen_at: string
+  seen_count: number
+}
+
+export interface StoredSignalsResult {
+  total: number
+  returned: number
+  counts_by_family: StoredSignalsCounts
+  unmatched_inputs: string[]
+  signals: StoredSignal[]
+}
