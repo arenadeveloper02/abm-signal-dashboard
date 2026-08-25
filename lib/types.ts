@@ -151,6 +151,18 @@ export interface StoredSignalsCounts {
   partnership: number
 }
 
+export interface StoredCompany {
+  company_id: string
+  company_name: string
+  company_key: string
+  domain: string
+  website: string
+  industry: string
+  hq: string
+  total: number
+  by_family: StoredSignalsCounts
+}
+
 export interface StoredSignal {
   id: string
   company_id: string
@@ -170,6 +182,7 @@ export interface StoredSignal {
   first_seen_at: string
   last_seen_at: string
   seen_count: number
+  fields?: Record<string, string>
 }
 
 export interface StoredSignalsResult {
@@ -178,4 +191,10 @@ export interface StoredSignalsResult {
   counts_by_family: StoredSignalsCounts
   unmatched_inputs: string[]
   signals: StoredSignal[]
+  limit?: number
+  offset?: number
+  requested_count?: number
+  matched_count?: number
+  unmatched_count?: number
+  companies?: StoredCompany[]
 }

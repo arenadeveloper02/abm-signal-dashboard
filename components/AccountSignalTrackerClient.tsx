@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { AnalyzeResult, ParsedCompany, StoredSignal, StoredSignalsResult } from '@/lib/types'
-import { formatDate } from '@/lib/utils'
 import EmptyState from '@/components/EmptyState'
+import StoredSignalsDashboard from '@/components/StoredSignalsDashboard'
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, '')
@@ -225,6 +225,22 @@ export default function AccountSignalTrackerClient() {
       setStoredResult({
         total: json.total,
         returned: typeof json.returned === 'number' ? json.returned : json.signals.length,
+        limit: typeof json.limit === 'number' ? json.limit : 1000,
+        offset: typeof json.offset === 'number' ? json.offset : 0,
+        requested_count:
+          typeof json.requested_count === 'number' ? json.requested_count : companies.length,
+        matched_count:
+          typeof json.matched_count === 'number'
+            ? json.matched_count
+            : Array.isArray(json.companies)
+              ? json.companies.length
+              : 0,
+        unmatched_count:
+          typeof json.unmatched_count === 'number'
+            ? json.unmatched_count
+            : Array.isArray(json.unmatched_inputs)
+              ? json.unmatched_inputs.length
+              : 0,
         counts_by_family: {
           funding: json.counts_by_family?.funding ?? 0,
           csuite: json.counts_by_family?.csuite ?? 0,
@@ -232,6 +248,7 @@ export default function AccountSignalTrackerClient() {
           partnership: json.counts_by_family?.partnership ?? 0,
         },
         unmatched_inputs: Array.isArray(json.unmatched_inputs) ? json.unmatched_inputs : [],
+        companies: Array.isArray(json.companies) ? json.companies : [],
         signals: json.signals as StoredSignal[],
       })
     } catch {
@@ -326,22 +343,20 @@ export default function AccountSignalTrackerClient() {
         }`}
       >
         <p className="text-base font-medium">Drag and drop your company file here</p>
-        <p className="mt-1 text-sm">Supported formats: CSV, XLSX</p>
+        <p className="mt-1 text-sm">Supports CSV and XLSX files</p>
         <button
           type="button"
-          onClick={() => {
-            if (fileInputRef.current) fileInputRef.current.click()
-          }}
-          className="mt-4 rounded border px-4 py-2 text-sm font-medium"
+          onClick={() => fileInputRef.current?.click()}
+          className="mt-4 rounded bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#155db5]"
         >
-          Upload Companies
+          Browse Files
         </button>
         <input
           ref={fileInputRef}
           type="file"
           accept=".csv,.xlsx"
-          className="hidden"
           aria-label="Upload company file"
+          className="hidden"
           onChange={(e) => {
             handleFiles(e.target.files)
             e.target.value = ''
@@ -350,162 +365,93 @@ export default function AccountSignalTrackerClient() {
       </div>
 
       {companies.length > 0 && (
-        <>
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm">
-              {companies.length} companies ready to import \u00b7 {fileName}
-            </p>
+        <section className="mt-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-medium">{fileName}</h2>
+              <p className="text-sm text-[#6D717F]">
+                {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} loaded
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleAnalyze()}
+                disabled={companies.length === 0 || analyzing || fetchingStored}
+                className="rounded bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155db5] disabled:opacity-60"
+              >
+                {analyzing ? 'Analyzing\u2026' : 'Analyze'}
+              </button>
               <button
                 type="button"
                 onClick={() => void handleFetchStored()}
                 disabled={companies.length === 0 || analyzing || fetchingStored}
-                aria-busy={fetchingStored}
-                className="flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="rounded border border-[#1A73E8] bg-white px-4 py-2 text-sm font-semibold text-[#1A73E8] transition-colors hover:bg-[#F3F8FE] disabled:opacity-60"
               >
-                {fetchingStored && (
-                  <span
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
-                  />
-                )}
-                {fetchingStored ? 'Fetching stored signals...' : 'Fetch Stored Signals'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleAnalyze()}
-                disabled={companies.length === 0 || analyzing}
-                aria-busy={analyzing}
-                className="flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
-              >
-                {analyzing && (
-                  <span
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
-                  />
-                )}
-                {analyzing ? `Analyzing ${companies.length} companies...` : 'Analyze Companies'}
+                {fetchingStored ? 'Fetching\u2026' : 'Fetch Stored Signals'}
               </button>
             </div>
           </div>
-
-          {analyzing && (
-            <p className="mt-3 text-xs" role="status">
-              Analyzing {companies.length} companies... This can take several minutes for large
-              lists \u2014 keep this tab open.
-            </p>
-          )}
-
-          {analyzeError && (
-            <p className="mt-3 text-sm text-[#F31A1A]" role="alert">
-              {analyzeError}
-            </p>
-          )}
-
-          {storedError && (
-            <p className="mt-3 text-sm text-[#F31A1A]" role="alert">
-              {storedError}
-            </p>
-          )}
-
-          <div className="mt-4 max-h-96 overflow-y-auto rounded border">
-            <ul>
-              {visibleCompanies.map((company) => {
-                const index = companies.findIndex((c) => c.id === company.id)
-                return (
-                  <li
-                    key={company.id}
-                    className="flex items-center gap-4 border-b px-4 py-2 last:border-b-0"
-                  >
-                    <span className="w-10 shrink-0 text-sm">{index + 1}</span>
-                    <span className="flex-1 text-sm">
-                      {company.name}
-                      {company.location !== '' && (
-                        <span className="ml-2 text-xs text-[#6D717F]">{company.location}</span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemove(company.id)}
-                      aria-label={`Remove ${company.name}`}
-                      className="rounded border px-2 py-1 text-xs font-medium"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-
-          {storedResult && (
-            <section className="mt-8" aria-label="Stored signals">
-              <h2 className="text-lg font-medium">Stored Signals</h2>
-              <p className="mt-1 text-sm">
-                {storedResult.total} total signal{storedResult.total === 1 ? '' : 's'} \u00b7{' '}
-                {storedResult.returned} returned \u00b7 Funding {storedResult.counts_by_family.funding}{' '}
-                \u00b7 C-Suite {storedResult.counts_by_family.csuite} \u00b7 Product{' '}
-                {storedResult.counts_by_family.product} \u00b7 Partnership{' '}
-                {storedResult.counts_by_family.partnership}
-              </p>
-              {storedResult.unmatched_inputs.length > 0 && (
-                <p className="mt-2 text-xs text-[#6D717F]" role="status">
-                  No stored signals found for: {storedResult.unmatched_inputs.join(', ')}
-                </p>
-              )}
-              {storedResult.signals.length === 0 ? (
-                <div className="mt-4">
-                  <EmptyState
-                    icon="\ud83d\udd0d"
-                    title="No stored signals"
-                    message="No stored signals exist for the selected companies."
-                  />
+          <ul className="mt-4 divide-y rounded border">
+            {visibleCompanies.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                <div>
+                  <p className="text-sm font-medium">{c.name}</p>
+                  {c.location !== '' && <p className="text-xs text-[#6D717F]">{c.location}</p>}
                 </div>
-              ) : (
-                <div className="mt-4 overflow-x-auto rounded border">
-                  <table className="w-full min-w-[64rem] text-left text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="px-4 py-2 font-medium">Company</th>
-                        <th className="px-4 py-2 font-medium">Family</th>
-                        <th className="px-4 py-2 font-medium">Signal Type</th>
-                        <th className="px-4 py-2 font-medium">Summary</th>
-                        <th className="px-4 py-2 font-medium">Confidence</th>
-                        <th className="px-4 py-2 font-medium">Announcement Date</th>
-                        <th className="px-4 py-2 font-medium">Last Seen</th>
-                        <th className="px-4 py-2 font-medium">Source</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {storedResult.signals.map((s, i) => (
-                        <tr key={s.id !== '' && s.id !== undefined ? s.id : `stored-${i}`} className="border-b last:border-b-0 align-top">
-                          <td className="px-4 py-2 font-medium">{s.company_name}</td>
-                          <td className="px-4 py-2">{s.signal_family}</td>
-                          <td className="px-4 py-2">{s.signal_type}</td>
-                          <td className="px-4 py-2 max-w-md">{s.summary}</td>
-                          <td className="px-4 py-2">{s.confidence}</td>
-                          <td className="px-4 py-2 whitespace-nowrap">{formatDate(s.announcement_date)}</td>
-                          <td className="px-4 py-2 whitespace-nowrap">{formatDate(s.last_seen_at)}</td>
-                          <td className="px-4 py-2">
-                            <a
-                              href={s.source_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-medium underline"
-                            >
-                              {s.source_name} \u2197
-                            </a>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          )}
-        </>
+                <button
+                  type="button"
+                  onClick={() => handleRemove(c.id)}
+                  aria-label={`Remove ${c.name}`}
+                  className="text-xs font-medium text-[#F31A1A] hover:underline"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
+
+      {analyzeError && (
+        <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
+          {analyzeError}
+        </p>
+      )}
+
+      {analysisResult && (
+        <div className="mt-4 rounded border p-4">
+          <p className="text-sm font-medium">Analysis complete \u2014 run {analysisResult.run_id}</p>
+          <p className="mt-1 text-sm text-[#6D717F]">
+            {analysisResult.companies_processed} companies processed \u00b7 {analysisResult.total_signals} signals
+          </p>
+        </div>
+      )}
+
+      {storedError && (
+        <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
+          {storedError}
+        </p>
+      )}
+
+      {storedResult &&
+        (storedResult.signals.length === 0 ? (
+          <div className="mt-8">
+            <EmptyState
+              title="No stored signals"
+              message="No stored signals were found for the uploaded companies."
+            />
+          </div>
+        ) : (
+          <div className="mt-8">
+            <StoredSignalsDashboard
+              result={storedResult}
+              onRefresh={() => void handleFetchStored()}
+              onImport={() => fileInputRef.current?.click()}
+              refreshing={fetchingStored}
+            />
+          </div>
+        ))}
     </div>
   )
 }
