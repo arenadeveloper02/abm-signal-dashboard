@@ -286,7 +286,7 @@ export default function AccountSignalTrackerClient() {
           <p className="mt-1 text-sm">{subtitle}</p>
           {analysisResult && analysisResult.status === 'partial' && (
             <p className="mt-1 text-xs text-[#FB8145]" role="status">
-              Some companies could not be matched \u2014 results may be incomplete.
+              Some companies could not be matched {'\u2014'} results may be incomplete.
             </p>
           )}
         </div>
@@ -311,74 +311,92 @@ export default function AccountSignalTrackerClient() {
 
       <hr className="mt-4" />
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.xlsx"
+        className="hidden"
+        aria-label="Upload company list"
+        onChange={(e) => {
+          handleFiles(e.target.files)
+          e.target.value = ''
+        }}
+      />
+
       {companies.length === 0 && (
         <div className="mt-10 flex flex-col items-center justify-center text-center">
           <h2 className="text-lg font-medium">No companies are currently configured</h2>
           <p className="mt-2 max-w-xl text-sm">
             Upload a company list (CSV or XLSX) to start tracking ABM signals. Columns such as
-            Company Name, City, State and Country will be combined automatically.
+            Company Name, City, State and Country will be detected automatically.
           </p>
+          <div
+            className={`mt-6 w-full max-w-xl rounded-2xl border-2 border-dashed p-10 transition-colors ${
+              isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#D6D9E0]'
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setIsDragging(true)
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setIsDragging(false)
+              handleFiles(e.dataTransfer.files)
+            }}
+          >
+            <p className="text-sm text-[#6D717F]">Drag and drop a CSV or XLSX file here, or</p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-3 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB]"
+            >
+              Upload Company List
+            </button>
+          </div>
+          {error && (
+            <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
+              {error}
+            </p>
+          )}
         </div>
       )}
 
-      {error && (
-        <p className="mt-6 text-sm" role="alert">
-          {error}
-        </p>
+      {companies.length > 0 && storedResult && (
+        <div className="mt-6">
+          {storedError && (
+            <div
+              className="mb-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
+              role="alert"
+            >
+              {storedError}
+            </div>
+          )}
+          <StoredSignalsDashboard
+            result={storedResult}
+            onRefresh={() => void handleFetchStored()}
+            onImport={() => {
+              setStoredResult(null)
+              setStoredError(null)
+            }}
+            refreshing={fetchingStored}
+          />
+        </div>
       )}
 
-      <div
-        onDragOver={(e) => {
-          e.preventDefault()
-          setIsDragging(true)
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setIsDragging(false)
-          handleFiles(e.dataTransfer.files)
-        }}
-        className={`mt-8 flex flex-col items-center justify-center rounded border-2 border-dashed px-6 py-16 text-center ${
-          isDragging ? 'border-black' : ''
-        }`}
-      >
-        <p className="text-base font-medium">Drag and drop your company file here</p>
-        <p className="mt-1 text-sm">Supports CSV and XLSX files</p>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="mt-4 rounded bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#155db5]"
-        >
-          Browse Files
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx"
-          aria-label="Upload company file"
-          className="hidden"
-          onChange={(e) => {
-            handleFiles(e.target.files)
-            e.target.value = ''
-          }}
-        />
-      </div>
-
-      {companies.length > 0 && (
-        <section className="mt-8">
+      {companies.length > 0 && !storedResult && (
+        <div className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-medium">{fileName}</h2>
-              <p className="text-sm text-[#6D717F]">
-                {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} loaded
-              </p>
-            </div>
+            <p className="text-sm">
+              <span className="font-medium">{fileName}</span> {'\u00b7'} {companies.length} compan
+              {companies.length === 1 ? 'y' : 'ies'} loaded
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => void handleAnalyze()}
                 disabled={companies.length === 0 || analyzing || fetchingStored}
-                className="rounded bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155db5] disabled:opacity-60"
+                className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
               >
                 {analyzing ? 'Analyzing\u2026' : 'Analyze'}
               </button>
@@ -386,72 +404,106 @@ export default function AccountSignalTrackerClient() {
                 type="button"
                 onClick={() => void handleFetchStored()}
                 disabled={companies.length === 0 || analyzing || fetchingStored}
-                className="rounded border border-[#1A73E8] bg-white px-4 py-2 text-sm font-semibold text-[#1A73E8] transition-colors hover:bg-[#F3F8FE] disabled:opacity-60"
+                className="rounded-xl border border-[#1A73E8] bg-white px-4 py-2 text-sm font-semibold text-[#1A73E8] transition-colors hover:bg-[#F3F8FE] disabled:opacity-60"
               >
                 {fetchingStored ? 'Fetching\u2026' : 'Fetch Stored Signals'}
               </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={analyzing || fetchingStored}
+                className="rounded-xl border border-[#D6D9E0] px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] disabled:opacity-60"
+              >
+                Upload New List
+              </button>
             </div>
           </div>
-          <ul className="mt-4 divide-y rounded border">
-            {visibleCompanies.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-2">
-                <div>
-                  <p className="text-sm font-medium">{c.name}</p>
-                  {c.location !== '' && <p className="text-xs text-[#6D717F]">{c.location}</p>}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(c.id)}
-                  aria-label={`Remove ${c.name}`}
-                  className="text-xs font-medium text-[#F31A1A] hover:underline"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
-      {analyzeError && (
-        <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
-          {analyzeError}
-        </p>
-      )}
+          {error && (
+            <div
+              className="mt-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+          {analyzeError && (
+            <div
+              className="mt-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
+              role="alert"
+            >
+              {analyzeError}
+            </div>
+          )}
+          {storedError && (
+            <div
+              className="mt-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
+              role="alert"
+            >
+              {storedError}
+            </div>
+          )}
 
-      {analysisResult && (
-        <div className="mt-4 rounded border p-4">
-          <p className="text-sm font-medium">Analysis complete \u2014 run {analysisResult.run_id}</p>
-          <p className="mt-1 text-sm text-[#6D717F]">
-            {analysisResult.companies_processed} companies processed \u00b7 {analysisResult.total_signals} signals
-          </p>
+          {analysisResult && (
+            <div
+              className="mt-4 rounded-2xl border border-[#3BC884]/50 bg-[#3BC884]/10 p-4"
+              role="status"
+            >
+              <p className="text-sm font-medium text-[#2C2D33]">
+                Analysis run {analysisResult.run_id} {'\u00b7'} {analysisResult.status}
+              </p>
+              <p className="mt-1 text-xs text-[#6D717F]">
+                {analysisResult.companies_processed} companies processed {'\u00b7'}{' '}
+                {analysisResult.total_signals} signals found
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#E4E6EB]">
+            {visibleCompanies.length === 0 ? (
+              <EmptyState
+                icon="\uD83D\uDD0D"
+                title="No matching companies"
+                message="No companies match your search. Clear the search box to see the full list."
+              />
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="border-b border-[#E4E6EB] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]">
+                      Company
+                    </th>
+                    <th className="border-b border-[#E4E6EB] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]">
+                      Location
+                    </th>
+                    <th className="border-b border-[#E4E6EB] bg-[#F7F8F9] px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleCompanies.map((c) => (
+                    <tr key={c.id} className="border-b border-[#F0F1F4] last:border-b-0">
+                      <td className="px-4 py-3 font-medium text-[#2C2D33]">{c.name}</td>
+                      <td className="px-4 py-3 text-[#6D717F]">{c.location || '\u2014'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(c.id)}
+                          aria-label={`Remove ${c.name}`}
+                          className="rounded-lg border border-[#D6D9E0] px-2.5 py-1 text-xs text-[#6D717F] transition-colors hover:border-[#F31A1A]/60 hover:text-[#F31A1A]"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
-
-      {storedError && (
-        <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
-          {storedError}
-        </p>
-      )}
-
-      {storedResult &&
-        (storedResult.signals.length === 0 ? (
-          <div className="mt-8">
-            <EmptyState
-              title="No stored signals"
-              message="No stored signals were found for the uploaded companies."
-            />
-          </div>
-        ) : (
-          <div className="mt-8">
-            <StoredSignalsDashboard
-              result={storedResult}
-              onRefresh={() => void handleFetchStored()}
-              onImport={() => fileInputRef.current?.click()}
-              refreshing={fetchingStored}
-            />
-          </div>
-        ))}
     </div>
   )
 }

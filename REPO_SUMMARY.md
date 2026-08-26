@@ -1,24 +1,24 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T12:10:04.527Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T03:30:06.037Z.
 
 ## Overview
 
-ABM Signal Tracker: added a secondary 'Fetch Stored Signals' button beside Analyze and a full Account Signal Tracker dashboard (Overview/Trends/All Signals/Companies) rendered from the Signal Read API response. Files changed: components/AccountSignalTrackerClient.tsx (new button row, richer stored-signals response parsing, dashboard render + Import/Refresh wiring), components/StoredSignalsDashboard.tsx (new dashboard with stat cards, severity donut, type bars, top companies, recent high-severity list, trends chart, sortable/filterable signals table with fields{} detail expansion, companies tab), lib/types.ts (additive: StoredCompany, optional fields on StoredSignal, optional envelope fields on StoredSignalsResult), prisma/schema.prisma (echoed, unchanged model), app/not-found.tsx (canonical, unchanged).
+ABM Account Signal Tracker: upload a company list (CSV/XLSX), analyze accounts via the ABM workflow API, fetch stored signals via the Signal Read API, and explore a full dashboard (Overview, Trends, All Signals, Companies). Changed files: components/AccountSignalTrackerClient.tsx (completed the toolbar with the secondary 'Fetch Stored Signals' button next to Analyze, wired disabled/loading states, error banners, upload dropzone, companies table, and rendering of the stored-signals dashboard), components/StoredSignalsDashboard.tsx (completed the full Account Signal Tracker dashboard UI: header with Import/Refresh, tabs, 8 stat cards, severity donut, signals-by-type bar chart, top companies, recent high-severity list, trends area chart, sortable/filterable signals table with expandable field details, companies tab, unmatched-inputs note, empty states), prisma/schema.prisma (echoed — RefreshEvent model unchanged, no columns modified).
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 45
 
 ## Features
 
-- Fetch Stored Signals button (secondary/outline) next to Analyze, disabled while no companies or a request is in flight
-- Calls the ABM Signal Read API via the existing /api/stored-signals proxy with { companies: [{ company_name }], limit: 1000 }
-- Overview tab with 8 colour-tinted stat cards, severity donut, signals-by-type bar chart, top companies and recent high-severity signals
-- Trends tab bucketing signals by announcement_date stacked by family
-- All Signals tab with sortable, filterable, searchable table and per-row fields{} detail expansion
-- Companies tab rendering companies[] with domain, industry, HQ and by_family breakdown
-- Severity normalization across funding/partnership/product/csuite confidence formats and NO_SIGNIFICANT_SIGNAL filtering
-- Irregular source-link handling (csuite Supporting URLs, multi-URL partnership source_url)
+- CSV/XLSX company list upload with drag-and-drop
+- Analyze button calling the ABM workflow API
+- Fetch Stored Signals button calling the ABM Signal Read API with { companies: [{ company_name }], limit: 1000 }
+- Account Signal Tracker dashboard with Overview, Trends, All Signals and Companies tabs
+- Severity normalization across funding/csuite/product/partnership families
+- Signals-by-type display-label mapping and charts (recharts)
+- Per-signal family-specific field details with irregular source-link handling
+- Unmatched-inputs note and empty states
 
 ## Tech Stack
 
@@ -156,7 +156,7 @@ ABM Signal Tracker: added a secondary 'Fetch Stored Signals' button beside Analy
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T12:10:04.527Z
+- **Updated at:** 2026-08-26T03:30:06.037Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 === 1. NEW BUTTON ===
