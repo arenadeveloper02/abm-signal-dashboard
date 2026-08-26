@@ -1,22 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T08:06:33.182Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T08:17:26.550Z.
 
 ## Overview
 
-ABM Account Signal Tracker: upload a company list (CSV/XLSX) and track funding, C-suite, product and partnership signals. Confirmed change: app/api/all-stored-signals/route.ts — getApiKey() now falls back to the module-level DEFAULT_ALL_SIGNALS_API_KEY when neither ABM_ALL_SIGNALS_API_KEY nor ABM_API_KEY is set (env vars still take precedence). Also repaired components/StoredSignalsDashboard.tsx, which had unterminated JSX and an invalid trailing character that broke the build.
+ABM Signal Dashboard: upload a company list or auto-load all stored ABM signals across funding, C-suite, product and partnership activity, with severity KPIs, trends and insights. Fixed the truncated/corrupted components/StoredSignalsDashboard.tsx (unclosed JSX / invalid character) by restoring the complete component, and repointed lib/actions.ts logRefresh to the existing AppSetting model (the deployed schema has no RefreshEvent model). prisma/schema.prisma is echoed verbatim and untouched. The requested API-key default in app/api/all-stored-signals/route.ts (getApiKey) was already present and left as-is.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- CSV/XLSX company list upload
-- Live signal analysis via ABM workflow API
-- Stored signal dashboard with KPI cards, charts and feed
-- Severity, type, week and industry filtering
+- Auto-loads all stored signals on first visit via /api/all-stored-signals
+- CSV/XLSX company list upload with column normalization
+- Severity-normalized KPI cards with sparklines and feed filtering
+- Weekly severity and family trend charts, type donut, industry breakdown
 - Companies, Signals, Trends and Insights tabs
-- Arena email gate with iframe-safe headers
+- Arena email gate with access-denied page and iframe-safe headers
 
 ## Tech Stack
 
@@ -37,7 +37,7 @@ ABM Account Signal Tracker: upload a company list (CSV/XLSX) and track funding, 
 
 ## Database Models
 
-- `RefreshEvent`
+- `AppSetting`
 
 ## File Inventory
 
@@ -156,7 +156,7 @@ ABM Account Signal Tracker: upload a company list (CSV/XLSX) and track funding, 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T08:06:33.182Z
+- **Updated at:** 2026-08-26T08:17:26.550Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave that file untouched.
 
 STANDING RULE — THEME LOCK: The current light theme is correct. Do not change theme, colors, layout, or introduce dark mode anywhere.
