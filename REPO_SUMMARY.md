@@ -1,24 +1,24 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T12:32:53.650Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T17:23:40.990Z.
 
 ## Overview
 
-ABM account signal tracking dashboard. Fixed broken JSX in components/StoredSignalsDashboard.tsx (unclosed div/main tags and an invalid character introduced by a prior edit) and applied the requested change: the Overview tab's Recent Signals list now scrolls inside the card via max-h-96 overflow-y-auto on the inner list container, so scrolling the list no longer scrolls the whole page. No other components, APIs, styling, schema, or build scripts were changed.
+ABM account signal tracking dashboard with company import (CSV/XLSX), background analysis, and a stored-signals overview with KPI cards, charts, and a scrollable Recent Signals feed.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Overview KPI cards with weekly sparklines
-- Recent Signals card with internal (in-card) scrolling
+- Import companies via CSV/XLSX or manual entry
+- Background signal analysis via ABM workflow API
+- Stored signals dashboard with KPI cards and sparklines
 - Weekly severity and family trend charts
-- Signal type donut and industry breakdown
-- Companies table with industry filter
-- Signal feed with type/week filters
+- Recent Signals card with internal scrolling
+- Signals feed with type, week and industry filters
+- Companies table with per-family counts
 - High-severity insights view
-- Company list import via CSV/XLSX with background analysis
 
 ## Tech Stack
 
@@ -158,7 +158,7 @@ ABM account signal tracking dashboard. Fixed broken JSX in components/StoredSign
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T12:32:53.650Z
+- **Updated at:** 2026-08-26T17:23:40.990Z
 - **Request:** SCOPE LOCK — obey exactly:
 - SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the single edit described below.
 - Do NOT change the theme, colors, fonts, spacing, card styling, layout, or any other component.
