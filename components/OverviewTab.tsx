@@ -34,9 +34,9 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
   const spark = (key: 'total' | Family): number[] => trends.byMonth.map((m) => m[key])
 
   const cards: CardDef[] = [
-    { icon: '🏢', label: 'Companies with Signals', value: kpis.companiesWithSignals, accent: '#00A7D6', spark: spark('total'), family: 'all' },
+    { icon: '\u{1F3E2}', label: 'Companies with Signals', value: kpis.companiesWithSignals, accent: '#00A7D6', spark: spark('total'), family: 'all' },
     {
-      icon: '📡',
+      icon: '\u{1F4E1}',
       label: 'Total Signals',
       value: kpis.totalSignals,
       accent: '#1A73E8',
@@ -48,13 +48,13 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
         { label: 'L', value: byConfidence.LOW, color: '#9AA0AE' },
       ],
     },
-    { icon: '🚨', label: 'High Alerts', value: kpis.highAlerts, accent: '#F31A1A', spark: [kpis.highAlerts], family: 'all' },
-    { icon: '👔', label: 'C-Suite Changes', value: kpis.csuiteChanges, accent: '#B364D7', spark: spark('csuite'), family: 'csuite' },
-    { icon: '💰', label: 'Funding', value: kpis.funding, accent: '#3BC884', spark: spark('funding'), family: 'funding', selected: true },
-    { icon: '🤝', label: 'Mergers & Acquisitions', value: kpis.mergersAcquisitions, accent: '#FB8145', spark: [kpis.mergersAcquisitions], family: 'all' },
-    { icon: '📈', label: 'IPO', value: kpis.ipo, accent: '#DFC612', spark: [kpis.ipo], family: 'all' },
-    { icon: '🚀', label: 'Product Launches', value: kpis.productLaunches, accent: '#00A7D6', spark: spark('product'), family: 'product' },
-    { icon: '🔗', label: 'Partnerships', value: kpis.partnerships, accent: '#F8528F', spark: spark('partnership'), family: 'partnership' },
+    { icon: '\u{1F6A8}', label: 'High Alerts', value: kpis.highAlerts, accent: '#F31A1A', spark: [kpis.highAlerts], family: 'all' },
+    { icon: '\u{1F454}', label: 'C-Suite Changes', value: kpis.csuiteChanges, accent: '#B364D7', spark: spark('csuite'), family: 'csuite' },
+    { icon: '\u{1F4B0}', label: 'Funding', value: kpis.funding, accent: '#3BC884', spark: spark('funding'), family: 'funding', selected: true },
+    { icon: '\u{1F91D}', label: 'Mergers & Acquisitions', value: kpis.mergersAcquisitions, accent: '#FB8145', spark: [kpis.mergersAcquisitions], family: 'all' },
+    { icon: '\u{1F4C8}', label: 'IPO', value: kpis.ipo, accent: '#DFC612', spark: [kpis.ipo], family: 'all' },
+    { icon: '\u{1F680}', label: 'Product Launches', value: kpis.productLaunches, accent: '#00A7D6', spark: spark('product'), family: 'product' },
+    { icon: '\u{1F517}', label: 'Partnerships', value: kpis.partnerships, accent: '#F8528F', spark: spark('partnership'), family: 'partnership' },
   ]
 
   const famData = FAMILIES.map((f) => ({ name: FAMILY_META[f].label, value: byFamily[f], color: FAMILY_META[f].color }))
@@ -104,7 +104,7 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
             {famData.map((d) => (
               <li key={d.name} className="flex items-center gap-2 text-xs text-[#A6ABB8]">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} aria-hidden="true" />
-                {d.name} · <span className="text-white">{d.value}</span>
+                {d.name} \u00b7 <span className="text-white">{d.value}</span>
               </li>
             ))}
           </ul>
@@ -127,6 +127,28 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
           )}
         </section>
       </div>
+      <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Recent signals">
+        <h2 className="text-sm font-semibold text-[#A6ABB8]">Recent Signals</h2>
+        {data.signals.length === 0 ? (
+          <p className="mt-16 text-center text-sm text-[#6D717F]">No signals yet.</p>
+        ) : (
+          <ul className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
+            {data.signals.map((s, i) => (
+              <li key={`${s.company}-${s.signal_type}-${s.date}-${i}`} className="rounded-xl border border-[#2E313A] bg-[#22242C] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-white">{s.company}</span>
+                  <span className="shrink-0 text-xs text-[#6D717F]">{s.date}</span>
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-xs text-[#A6ABB8]">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: FAMILY_META[s.family].color }} aria-hidden="true" />
+                  {s.signal_type} \u00b7 {s.confidence}
+                </div>
+                <p className="mt-1 text-xs text-[#8C919E]">{s.summary}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }
