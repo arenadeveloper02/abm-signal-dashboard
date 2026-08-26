@@ -1,21 +1,24 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T10:27:31.217Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T11:31:02.738Z.
 
 ## Overview
 
-ABM account signal tracker: upload a company list (CSV/XLSX) or view all stored companies, and explore funding, C-suite, product and partnership signals in a tabbed dashboard.
+ABM account signal tracker dashboard: loads all companies' stored signals on launch, supports company import (typed + CSV/XLSX upload) with background analysis, and visualizes signals across overview, companies, signals, trends, and insights tabs.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Landing loads the all-companies stored-signals dashboard automatically
-- Upload a CSV/XLSX company list to scope the same dashboard to those companies
-- Analyze Signals runs against the currently scoped company set
-- Tabbed dashboard with KPI cards, severity, type, industry and trend charts
-- Arena iframe email gating with access-denied page
+- All-companies dashboard on load
+- Import Companies screen with typed entries and drag-and-drop CSV/XLSX upload
+- Background Save & Analyze with toast notification
+- Refresh Dashboard reloading all-company stored signals
+- Overview KPI cards with sparklines and severity pills
+- Weekly severity and family trend charts
+- Signal type donut with click-to-filter feed
+- Companies, Signals, Trends and Insights tabs
 
 ## Tech Stack
 
@@ -37,7 +40,6 @@ ABM account signal tracker: upload a company list (CSV/XLSX) or view all stored 
 ## Database Models
 
 - `AppSetting`
-- `RefreshEvent`
 
 ## File Inventory
 
@@ -156,48 +158,54 @@ ABM account signal tracker: upload a company list (CSV/XLSX) or view all stored 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T10:27:31.217Z
+- **Updated at:** 2026-08-26T11:31:02.738Z
 - **Request:** SCOPE LOCK — obey exactly:
 - SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte unless it is in the allowlist below.
-- Do NOT modify prisma/schema.prisma under any circumstance.
-- Do NOT change theme, colors, fonts, layout spacing, or add dark mode.
+- Do NOT modify prisma/schema.prisma under any circumstance. It must stay a no-op for `prisma db push`. If you think it needs changing, STOP and leave it untouched.
+- Do NOT change the theme, colors, fonts, layout spacing, or add dark mode. Match the existing visual style.
 - Do NOT refactor, rename, reorder, reformat, or "clean up" any file not in the allowlist.
-- Do NOT add dependencies, env vars, config, or API routes.
-- Do NOT change any file under app/api/ — no changes to endpoints, upstream URLs, API keys/env var handling, or response parsing.
-- Do NOT change the dashboard tabs/charts themselves (StoredSignalsDashboard.tsx internals) beyond passing it different data.
+- Do NOT add dependencies, env vars, config, or new API routes.
+- Do NOT change the API endpoints, request/response shapes, data-fetching logic, response parsing, or the dashboard tabs/charts themselves. Reuse the EXISTING all-companies fetch and the EXISTING analyze call as they are.
 - Touch ONLY the file(s) in the allowlist.
 
 FILES YOU MAY EDIT (allowlist — nothing else):
-- components/AccountSignalTrackerClient.tsx
-(If the company table, buttons, or upload flow genuinely live in a different file, STOP and report which file before editing — do not silently edit outside this list.)
+- the single client component that renders the landing/dashboard view, the action buttons, the upload/import screen, and the dashboard tabs (identify it yourself; do not touch any other file). If the import/upload screen genuinely lives in a separate component, you may edit that ONE component too — but STOP and report it first if it is outside this file.
+
 
 THE CHANGES (make exactly these, nothing more):
 
-1. LANDING = DASHBOARD FOR ALL COMPANIES, NO TABLE, EVER:
-On initial page load, go straight to the dashboard populated with ALL companies' data. Never show the upload screen or an empty state first (an error fallback if the fetch genuinely fails is fine). This already calls fetch('/api/all-stored-signals', ...) on mount — do NOT change this endpoint or its call shape, only fix the render branching if needed so the dashboard reliably shows first.
+1. LANDING = ALL-COMPANIES DASHBOARD, ALWAYS:
+On first load, immediately show the dashboard populated with ALL companies' data. Never show the upload screen or an empty state first (an error fallback if the fetch genuinely fails is fine). Reuse the EXISTING all-companies stored-signals fetch and trigger it automatically on mount. The dashboard must ALWAYS display data for all companies.
 
-The COMPANY / LOCATION / ACTION table with Remove buttons must be deleted entirely and must never render, in any state — not on landing, and not after uploading a file either. There is no scenario where this table should appear.
 
-2. UPLOAD DIFFERENT FILE — SAME UI, DIFFERENT DATA SCOPE:
-Clicking "Upload Different File" opens the existing drag-and-drop upload screen. Once the user uploads a valid company list, the app must show the SAME dashboard UI (same layout, same tabs, same charts, same components as the all-companies view) but scoped to ONLY the companies from that uploaded file. Do not show the company table for this case either — go straight from "file uploaded" to "dashboard filtered to those companies."
+3. EXACTLY TWO BUTTONS ON THE DASHBOARD:
+Replace the current dashboard button set with only these two, side by side:
+ a) "Import Company" — opens the Import screen described in point 4.
+ b) "Refresh Dashboard" — re-runs the EXISTING all-companies stored-signals fetch (the same all-company data API used on initial load) and repopulates the dashboard. It ALWAYS loads all companies, regardless of any prior import.
+Remove any other dashboard buttons ("Analyze Signals", "Load Stored Signals", "Upload Different File", etc.). Do not keep old labels.
 
-3. BUTTONS:
-Keep "Upload Different File", "Analyze Signals", and "Load Stored Signals" together in the action row, exactly as positioned now. Do not remove, rename, or reposition any button.
+4. "IMPORT COMPANY" SCREEN (match the provided reference layout):
+Clicking "Import Company" opens an Import screen titled "Import Companies" with a short helper line. It must include:
+ - A text input to type a company (placeholder like "Add a company (e.g. Acme Inc,San Francisco,CA,USA)") plus an "Add Company" button that adds the typed company to a list.
+ - The EXISTING drag-and-drop file upload so the user can also select a file of companies. Both paths (typed entries and uploaded file) feed the same in-memory company list.
+ - A visible company list ("N of M companies in the list") with a Remove action per row, exactly like the reference image. This list/table belongs ONLY to this Import screen, not the dashboard.
+ - A "Save & Analyze" button.
 
-4. ANALYZE SIGNALS — SCOPE FOLLOWS CURRENT CONTEXT:
-"Analyze Signals" always analyzes whichever companies are currently in scope:
-   - If the user has not uploaded a file (still on the default all-companies view), Analyze Signals analyzes ALL companies.
-   - If the user has uploaded a file via "Upload Different File," Analyze Signals analyzes only the companies from that uploaded file.
-There is no manual per-company checkbox/selection UI — "selected companies" means whichever set (all, or uploaded) is currently active. Do NOT change how the analyze API/fetch call itself is invoked, its endpoint, or what it returns — only change which companies are passed into it based on current scope.
+5. "SAVE & ANALYZE" BEHAVIOR:
+When the user clicks "Save & Analyze":
+ - Call the EXISTING analyze-signals call with the companies currently in the Import list (typed + uploaded). Do NOT change the analyze endpoint, its payload shape, or its response handling — only pass in this company set.
+ - Kick the analysis off in the BACKGROUND (do not block the UI waiting for it to finish).
+ - Immediately navigate to / show the dashboard, which must display ALL companies' data (reuse the all-companies fetch).
+ - Show a popup/toast/modal on the dashboard that says analysis is running in the background and will take some time (e.g. "Analysis is running in the background. This may take a few minutes."). The user can keep using the dashboard while it runs.
 
 DO NOT CHANGE:
-- Any file under app/api/ or lib/ — API endpoints, fetch logic, response parsing, or upstream URLs/keys.
-- The dashboard tabs, charts, metrics, or their internal rendering logic (StoredSignalsDashboard.tsx) — only the data/company scope passed into it should differ.
-- The visual theme, colors, spacing, or component styling.
+- The all-companies stored-signals API call/endpoint/response parsing.
+- The analyze-signals call/endpoint/payload/response parsing.
+- The dashboard tabs, charts, metrics, or their data.
+- Files under app/api/ or lib/.
 
 AFTER IMPLEMENTING:
 - List every file you modified. If anything outside the allowlist appears, revert it.
-- Confirm prisma/schema.prisma is byte-for-byte unchanged.
-- Confirm no file under app/api/ was touched.
-- Confirm: (a) app opens straight to the all-companies dashboard with no table, (b) uploading a file shows the same dashboard UI scoped to just those companies with no table, (c) Analyze Signals uses all companies by default or the uploaded set if a file was uploaded.
+- Confirm prisma/schema.prisma is byte-for-byte unchanged and no file under app/api/ was touched.
+- Confirm: (a) app opens straight to the all-companies dashboard with the old company table gone, (b) dashboard has exactly two buttons — "Import Company" and "Refresh Dashboard", (c) Refresh Dashboard always loads all companies, (d) Import Company opens the Import screen with add-company input + file upload + company list + "Save & Analyze", (e) Save & Analyze fires the analyze call in the background, shows the dashboard for all companies, and displays the background-analysis popup.
 - Print the final contents of each file you changed.

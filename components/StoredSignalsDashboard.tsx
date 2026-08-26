@@ -129,6 +129,37 @@ function TypeBadge({ label }: { label: string }) {
   )
 }
 
+function SignalRow({ e }: { e: EnrichedSignal }) {
+  return (
+    <article className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-[#2C2D33]">{e.s.company_name}</span>
+        <TypeBadge label={e.displayType} />
+        <SeverityBadge severity={e.severity} />
+        <span className="ml-auto text-xs text-[#8A8D99]">{formatDate(e.dateIso)}</span>
+      </div>
+      {e.s.summary !== '' && (
+        <p className="mt-2 text-sm leading-relaxed text-[#575A66]">{e.s.summary}</p>
+      )}
+      {e.links.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-3">
+          {e.links.map((l, i) => (
+            <a
+              key={`${l.url}-${i}`}
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline"
+            >
+              {l.name} ↗
+            </a>
+          ))}
+        </div>
+      )}
+    </article>
+  )
+}
+
 const CARD_TYPE_FILTER: Record<string, string | undefined> = {
   Funding: 'Funding Round',
   'Mergers & Acquisitions': 'Acquisition / M&A',
@@ -335,7 +366,7 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
     }
   }
 
-  const handleWeeklyClick = (state: unknown) => {
+  const handleWeekClick = (state: unknown) => {
     const label = activeLabelOf(state)
     if (label !== null) {
       setFeedWeek((prev) => (prev === label ? null : label))
@@ -344,20 +375,39 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
 
   const handleCardClick = (label: string) => {
     const mapped = CARD_TYPE_FILTER[label]
-    if (mapped === undefined) {
+    if (mapped) {
+      setFeedType((prev) => (prev === mapped ? null : mapped))
+    } else {
       setFeedType(null)
-      setFeedWeek(null)
-      return
     }
-    toggleFeedType(mapped)
   }
 
-  const clearFeedFilters = () => {
-    setFeedType(null)
-    setFeedWeek(null)
-  }
-
-  const feedItems = feed.slice(0, 50)
+  const insightTiles: { label: string; value: string; sub: string; accent: string }[] = [
+    {
+      label: 'Most Signals',
+      value: topCompany ? topCompany[0] : '—',
+      sub: topCompany ? `${formatNumber(topCompany[1])} total signal${topCompany[1] === 1 ? '' : 's'}` : 'No companies yet',
+      accent: '#1A73E8',
+    },
+    {
+      label: 'Top Signal Type',
+      value: topType ? topType.name : '—',
+      sub: topType ? `${formatNumber(topType.value)} occurrence${topType.value === 1 ? '' : 's'}` : 'No signal types yet',
+      accent: '#B364D7',
+    },
+    {
+      label: 'High Alerts',
+      value: formatNumber(severityCounts.HIGH),
+      sub: severityCounts.HIGH > 0 ? 'High-severity signals detected' : 'No high-severity signals',
+      accent: '#F31A1A',
+    },
+    {
+      label: 'Most Recent Signal',
+      value: newestSignal ? newestSignal.s.company_name : '—',
+      sub: newestSignal ? `${newestSignal.displayType} · ${formatDate(newestSignal.dateIso)}` : 'No signals yet',
+      accent: '#3BC884',
+    },
+  ]
 
   return (
     <div>
@@ -382,37 +432,41 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Weekly signal volume by severity">
-                <h2 className="text-sm font-semibold text-[#575A66]">Weekly Volume by Severity</h2>
+              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Weekly signal volume chart">
+                <h2 className="text-sm font-semibold text-[#575A66]">
+                  Weekly Signal Volume{feedWeek ? ` · week of ${formatDate(feedWeek)}` : ''}
+                </h2>
+                <p className="mt-0.5 text-xs text-[#8A8D99]">Click a bar to filter the feed by week.</p>
                 {weeklyData.length === 0 ? (
                   <p className="mt-16 text-center text-sm text-[#8A8D99]">No dated signals yet.</p>
                 ) : (
                   <div className="mt-2 h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={weeklyData} onClick={handleWeeklyClick} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                      <BarChart data={weeklyData} onClick={handleWeekClick} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
                         <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
                         <XAxis dataKey="week" stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 11 }} />
                         <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 11 }} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(44,45,51,0.04)' }} />
+                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
                         {SEVERITIES.map((sev) => (
-                          <Bar key={sev} dataKey={sev} stackId="sev" fill={SEVERITY_COLORS[sev]} radius={sev === 'HIGH' ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                          <Bar key={sev} dataKey={sev} stackId="sev" fill={SEVERITY_COLORS[sev]} />
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 )}
-                {feedWeek !== null && (
-                  <p className="mt-2 text-xs text-[#575A66]">
-                    Feed filtered to week of {formatDate(feedWeek)}.{' '}
-                    <button type="button" onClick={() => setFeedWeek(null)} className="font-medium text-[#1A73E8] hover:underline">
-                      Clear
-                    </button>
-                  </p>
-                )}
+                <ul className="mt-3 flex flex-wrap gap-4">
+                  {SEVERITIES.map((sev) => (
+                    <li key={sev} className="flex items-center gap-2 text-xs text-[#575A66]">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SEVERITY_COLORS[sev] }} aria-hidden="true" />
+                      {sev} · <span className="text-[#2C2D33]">{formatNumber(severityCounts[sev])}</span>
+                    </li>
+                  ))}
+                </ul>
               </section>
 
-              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signals by type">
-                <h2 className="text-sm font-semibold text-[#575A66]">Signals by Type</h2>
+              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signal type mix chart">
+                <h2 className="text-sm font-semibold text-[#575A66]">Signal Type Mix</h2>
+                <p className="mt-0.5 text-xs text-[#8A8D99]">Click a slice to filter the feed by type.</p>
                 {donutData.length === 0 ? (
                   <p className="mt-16 text-center text-sm text-[#8A8D99]">No signal types yet.</p>
                 ) : (
@@ -438,71 +492,52 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                     </ResponsiveContainer>
                   </div>
                 )}
-                <ul className="mt-3 flex flex-wrap gap-3">
-                  {donutData.map((d) => (
-                    <li key={d.name}>
-                      <button
-                        type="button"
-                        onClick={() => toggleFeedType(d.name)}
-                        aria-pressed={feedType === d.name}
-                        className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                          feedType === d.name ? 'border-[#1A73E8] bg-[#F3F8FE] text-[#10458B]' : 'border-[#E2E3E5] bg-white text-[#575A66] hover:bg-[#F7F8F9]'
-                        }`}
-                      >
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: typeColor(d.name) }} aria-hidden="true" />
-                        {d.name} · {formatNumber(d.value)}
-                      </button>
+                <ul className="mt-3 flex flex-wrap gap-4">
+                  {donutData.slice(0, 6).map((d) => (
+                    <li key={d.name} className="flex items-center gap-2 text-xs text-[#575A66]">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: typeColor(d.name) }} aria-hidden="true" />
+                      {d.name} · <span className="text-[#2C2D33]">{formatNumber(d.value)}</span>
                     </li>
                   ))}
                 </ul>
               </section>
             </div>
 
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signal feed">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-semibold text-[#575A66]">Signal Feed (last 90 days)</h2>
-                <span className="text-xs text-[#8A8D99]">
-                  {formatNumber(feed.length)} signal{feed.length === 1 ? '' : 's'}
-                </span>
-                {(feedType !== null || feedWeek !== null) && (
+            <section aria-label="Signal feed">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold text-[#575A66]">Signal Feed · last 90 days</h2>
+                {feedType !== null && (
                   <button
                     type="button"
-                    onClick={clearFeedFilters}
-                    className="ml-auto rounded-lg border border-[#E2E3E5] px-3 py-1 text-xs font-medium text-[#575A66] transition-colors hover:bg-[#F7F8F9]"
+                    onClick={() => setFeedType(null)}
+                    className="inline-flex items-center gap-1 rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2.5 py-0.5 text-[11px] font-medium text-[#1A73E8] transition-colors hover:border-[#1A73E8]"
                   >
-                    Clear feed filters
+                    Type: {feedType} ✕
                   </button>
                 )}
+                {feedWeek !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setFeedWeek(null)}
+                    className="inline-flex items-center gap-1 rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2.5 py-0.5 text-[11px] font-medium text-[#1A73E8] transition-colors hover:border-[#1A73E8]"
+                  >
+                    Week of {formatDate(feedWeek)} ✕
+                  </button>
+                )}
+                <span className="ml-auto text-xs text-[#8A8D99]">
+                  {formatNumber(feed.length)} signal{feed.length === 1 ? '' : 's'}
+                </span>
               </div>
-              {feedItems.length === 0 ? (
-                <p className="mt-8 pb-4 text-center text-sm text-[#8A8D99]">No signals match the current feed filters.</p>
+              {feed.length === 0 ? (
+                <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
+                  <p className="text-3xl" aria-hidden="true">📭</p>
+                  <p className="mt-3 text-sm font-medium text-[#2C2D33]">No signals match the current filters</p>
+                  <p className="mt-1 text-xs text-[#8A8D99]">Try clearing the type or week filter, or refresh the dashboard.</p>
+                </div>
               ) : (
-                <div className="mt-4 space-y-3">
-                  {feedItems.map((e, i) => (
-                    <article key={`${e.s.id}-${i}`} className="rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-[#2C2D33]">{e.s.company_name}</span>
-                        <TypeBadge label={e.displayType} />
-                        <SeverityBadge severity={e.severity} />
-                        <span className="ml-auto text-xs text-[#8A8D99]">{formatDate(e.dateIso)}</span>
-                      </div>
-                      <p className="mt-2 text-sm leading-relaxed text-[#575A66]">{e.s.summary}</p>
-                      {e.links.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-3">
-                          {e.links.map((l, li) => (
-                            <a
-                              key={`${l.url}-${li}`}
-                              href={l.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline"
-                            >
-                              {l.name} ↗
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </article>
+                <div className="space-y-3">
+                  {feed.slice(0, 50).map((e, i) => (
+                    <SignalRow key={`${e.s.id}-${e.s.signal_key}-${i}`} e={e} />
                   ))}
                 </div>
               )}
@@ -511,76 +546,55 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
         )}
 
         {tab === 'companies' && (
-          <div className="space-y-4">
-            {(result.unmatched_inputs ?? []).length > 0 && (
-              <div className="rounded-2xl border border-[#FDCDB5] bg-[#FFF9F5] p-4">
-                <p className="text-sm font-medium text-[#974D29]">
-                  {result.unmatched_inputs.length} compan{result.unmatched_inputs.length === 1 ? 'y' : 'ies'} could not be matched:
-                </p>
-                <p className="mt-1 text-xs text-[#C96737]">{result.unmatched_inputs.join(', ')}</p>
-              </div>
-            )}
-            {sortedCompanies.length === 0 ? (
-              <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
-                <p className="text-3xl" aria-hidden="true">🏢</p>
-                <p className="mt-3 text-sm font-medium text-[#2C2D33]">No matched companies yet</p>
-                <p className="mt-1 text-xs text-[#8A8D99]">Load stored signals or upload a company list to see companies here.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {sortedCompanies.map((c, i) => (
-                  <article key={`${c.company_id || c.company_key || c.company_name}-${i}`} className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold text-[#2C2D33]">{c.company_name}</h3>
-                        <p className="mt-0.5 truncate text-xs text-[#8A8D99]">
-                          {[c.industry, c.hq].filter((v) => v && v.trim() !== '').join(' · ') || '—'}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-semibold text-[#10458B]">
-                        {formatNumber(c.total)} signal{c.total === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {FAMILIES.map((f) => (
-                        <span
-                          key={f}
-                          className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
-                          style={{
-                            color: FAMILY_META[f].color,
-                            borderColor: `${FAMILY_META[f].color}55`,
-                            backgroundColor: `${FAMILY_META[f].color}14`,
-                          }}
+          sortedCompanies.length === 0 ? (
+            <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
+              <p className="text-3xl" aria-hidden="true">🏢</p>
+              <p className="mt-3 text-sm font-medium text-[#2C2D33]">No companies yet</p>
+              <p className="mt-1 text-xs text-[#8A8D99]">Use “Import Company” to add companies and run an analysis.</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-[#E2E3E5] bg-white">
+              <div className="max-h-[70vh] overflow-auto rounded-2xl">
+                <table className="w-full min-w-[820px] text-sm">
+                  <thead>
+                    <tr>
+                      {['Company', 'Industry', 'HQ', 'Total', 'Funding', 'C-Suite', 'Product', 'Partnership'].map((h, i) => (
+                        <th
+                          key={h}
+                          className={`sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99] ${
+                            i >= 3 ? 'text-right' : 'text-left'
+                          }`}
                         >
-                          {FAMILY_META[f].label} {c.by_family?.[f] ?? 0}
-                        </span>
+                          {h}
+                        </th>
                       ))}
-                    </div>
-                    {c.website && c.website.trim() !== '' && (
-                      <a
-                        href={c.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline"
-                      >
-                        {c.domain && c.domain.trim() !== '' ? c.domain : 'Website'} ↗
-                      </a>
-                    )}
-                  </article>
-                ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedCompanies.map((c, i) => (
+                      <tr key={`${c.company_id}-${c.company_key}-${i}`} className="border-b border-[#F0F1F2] last:border-b-0 hover:bg-[#F7F8F9]">
+                        <td className="px-4 py-3 font-medium text-[#2C2D33]">{c.company_name}</td>
+                        <td className="px-4 py-3 text-[#575A66]">{c.industry !== '' ? c.industry : '—'}</td>
+                        <td className="px-4 py-3 text-[#575A66]">{c.hq !== '' ? c.hq : '—'}</td>
+                        <td className="px-4 py-3 text-right text-[#2C2D33]">{formatNumber(c.total)}</td>
+                        <td className="px-4 py-3 text-right text-[#575A66]">{formatNumber(c.by_family.funding)}</td>
+                        <td className="px-4 py-3 text-right text-[#575A66]">{formatNumber(c.by_family.csuite)}</td>
+                        <td className="px-4 py-3 text-right text-[#575A66]">{formatNumber(c.by_family.product)}</td>
+                        <td className="px-4 py-3 text-right text-[#575A66]">{formatNumber(c.by_family.partnership)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
+            </div>
+          )
         )}
 
         {tab === 'signals' && (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4">
-              <label htmlFor="industry-filter" className="text-xs font-medium uppercase tracking-wide text-[#8A8D99]">
-                Industry
-              </label>
               <select
-                id="industry-filter"
+                aria-label="Filter by industry"
                 value={industryFilter ?? ''}
                 onChange={(e) => setIndustryFilter(e.target.value === '' ? null : e.target.value)}
                 className="rounded-lg border border-[#E2E3E5] bg-white px-2 py-1.5 text-sm text-[#2C2D33] focus:border-[#1A73E8] focus:outline-none"
@@ -590,73 +604,38 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                   <option key={ind} value={ind}>{ind}</option>
                 ))}
               </select>
+              {industryFilter !== null && (
+                <button
+                  type="button"
+                  onClick={() => setIndustryFilter(null)}
+                  className="rounded-lg border border-[#E2E3E5] px-3 py-1.5 text-sm text-[#575A66] transition-colors hover:border-[#F31A1A]/50 hover:text-[#2C2D33]"
+                >
+                  Clear
+                </button>
+              )}
               <span className="ml-auto text-xs text-[#8A8D99]">
                 {formatNumber(tableSignals.length)} of {formatNumber(enriched.length)} signal{enriched.length === 1 ? '' : 's'}
               </span>
             </div>
-            <div className="rounded-2xl border border-[#E2E3E5] bg-white">
-              <div className="max-h-[70vh] overflow-auto rounded-2xl">
-                <table className="w-full min-w-[860px] text-sm">
-                  <thead>
-                    <tr>
-                      {['Company', 'Type', 'Severity', 'Date', 'Industry', 'Summary', 'Sources'].map((h) => (
-                        <th
-                          key={h}
-                          className="sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableSignals.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-12 text-center text-sm text-[#8A8D99]">
-                          No signals match the current filter.
-                        </td>
-                      </tr>
-                    ) : (
-                      tableSignals.map((e, i) => (
-                        <tr key={`${e.s.id}-${i}`} className="border-b border-[#F7F8F9] align-top last:border-b-0 hover:bg-[#F7F8F9]">
-                          <td className="whitespace-nowrap px-4 py-3 font-medium text-[#2C2D33]">{e.s.company_name}</td>
-                          <td className="whitespace-nowrap px-4 py-3"><TypeBadge label={e.displayType} /></td>
-                          <td className="whitespace-nowrap px-4 py-3"><SeverityBadge severity={e.severity} /></td>
-                          <td className="whitespace-nowrap px-4 py-3 text-[#575A66]">{formatDate(e.dateIso)}</td>
-                          <td className="whitespace-nowrap px-4 py-3 text-[#575A66]">{e.industry}</td>
-                          <td className="max-w-md px-4 py-3 text-[#575A66]">{e.s.summary}</td>
-                          <td className="px-4 py-3">
-                            {e.links.length === 0 ? (
-                              <span className="text-xs text-[#A7AAB2]">—</span>
-                            ) : (
-                              <div className="flex flex-col gap-1">
-                                {e.links.map((l, li) => (
-                                  <a
-                                    key={`${l.url}-${li}`}
-                                    href={l.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs font-medium text-[#1A73E8] hover:underline"
-                                  >
-                                    {l.name} ↗
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+            {tableSignals.length === 0 ? (
+              <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
+                <p className="text-3xl" aria-hidden="true">🔍</p>
+                <p className="mt-3 text-sm font-medium text-[#2C2D33]">No signals match your filter</p>
+                <p className="mt-1 text-xs text-[#8A8D99]">Try selecting a different industry or clearing the filter.</p>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {tableSignals.map((e, i) => (
+                  <SignalRow key={`${e.s.id}-${e.s.signal_key}-${i}`} e={e} />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {tab === 'trends' && (
           <div className="space-y-4">
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Weekly signals by family">
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Weekly signals by family chart">
               <h2 className="text-sm font-semibold text-[#575A66]">Weekly Signals by Family</h2>
               {weeklyFamilyData.length === 0 ? (
                 <p className="mt-16 text-center text-sm text-[#8A8D99]">No dated signals yet.</p>
@@ -667,7 +646,7 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                       <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
                       <XAxis dataKey="week" stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 11 }} />
                       <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 11 }} />
-                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(44,45,51,0.04)' }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
                       {FAMILIES.map((f) => (
                         <Bar key={f} dataKey={f} name={FAMILY_META[f].label} stackId="fam" fill={FAMILY_META[f].color} />
                       ))}
@@ -679,24 +658,28 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                 {FAMILIES.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-xs text-[#575A66]">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: FAMILY_META[f].color }} aria-hidden="true" />
-                    {FAMILY_META[f].label}
+                    {FAMILY_META[f].label} · <span className="text-[#2C2D33]">{formatNumber(familyTotal(f))}</span>
                   </li>
                 ))}
               </ul>
             </section>
 
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signals by industry">
-              <h2 className="text-sm font-semibold text-[#575A66]">Top Industries by Signal Count</h2>
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signals by industry chart">
+              <h2 className="text-sm font-semibold text-[#575A66]">Signals by Industry</h2>
               {industryData.length === 0 ? (
                 <p className="mt-16 text-center text-sm text-[#8A8D99]">No industry data yet.</p>
               ) : (
                 <div className="mt-2 h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={industryData} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-                      <XAxis type="number" allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 11 }} />
-                      <YAxis type="category" dataKey="name" width={150} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 11 }} />
-                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(44,45,51,0.04)' }} />
-                      <Bar dataKey="value" fill="#1A73E8" radius={[0, 6, 6, 0]} barSize={18} />
+                      <XAxis type="number" allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" width={140} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 11 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
+                      <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>
+                        {industryData.map((d, i) => (
+                          <Cell key={d.name} fill={TYPE_PALETTE[i % TYPE_PALETTE.length] ?? '#1A73E8'} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -707,30 +690,15 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
 
         {tab === 'insights' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]">Most Active Company</p>
-                <p className="mt-1 truncate text-xl font-semibold text-[#1A73E8]">{topCompany ? topCompany[0] : '—'}</p>
-                <p className="mt-0.5 text-xs text-[#8A8D99]">
-                  {topCompany ? `${formatNumber(topCompany[1])} signal${topCompany[1] === 1 ? '' : 's'}` : 'No signals yet'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]">Most Common Type</p>
-                <p className="mt-1 truncate text-xl font-semibold text-[#B364D7]">{topType ? topType.name : '—'}</p>
-                <p className="mt-0.5 text-xs text-[#8A8D99]">
-                  {topType ? `${formatNumber(topType.value)} occurrence${topType.value === 1 ? '' : 's'}` : 'No signal types yet'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]">Most Recent Signal</p>
-                <p className="mt-1 truncate text-xl font-semibold text-[#3BC884]">{newestSignal ? newestSignal.s.company_name : '—'}</p>
-                <p className="mt-0.5 text-xs text-[#8A8D99]">
-                  {newestSignal ? `${newestSignal.displayType} · ${formatDate(newestSignal.dateIso)}` : 'No signals yet'}
-                </p>
-              </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {insightTiles.map((t) => (
+                <div key={t.label} className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]">{t.label}</p>
+                  <p className="mt-1 truncate text-xl font-semibold" style={{ color: t.accent }}>{t.value}</p>
+                  <p className="mt-0.5 text-xs text-[#575A66]">{t.sub}</p>
+                </div>
+              ))}
             </div>
-
             <section aria-label="High severity signals">
               <div className="mb-3 flex items-center gap-2">
                 <h2 className="text-sm font-semibold text-[#575A66]">High-Severity Signals</h2>
@@ -741,36 +709,13 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
               {highSignals.length === 0 ? (
                 <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
                   <p className="text-3xl" aria-hidden="true">💡</p>
-                  <p className="mt-3 text-sm font-medium text-[#2C2D33]">No high-severity signals right now</p>
+                  <p className="mt-3 text-sm font-medium text-[#2C2D33]">No high-severity signals in this data set</p>
                   <p className="mt-1 text-xs text-[#8A8D99]">Check the Signals tab for medium and low severity activity.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {highSignals.map((e, i) => (
-                    <article key={`${e.s.id}-${i}`} className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-[#2C2D33]">{e.s.company_name}</span>
-                        <TypeBadge label={e.displayType} />
-                        <SeverityBadge severity={e.severity} />
-                        <span className="ml-auto text-xs text-[#8A8D99]">{formatDate(e.dateIso)}</span>
-                      </div>
-                      <p className="mt-2 text-sm leading-relaxed text-[#575A66]">{e.s.summary}</p>
-                      {e.links.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-3">
-                          {e.links.map((l, li) => (
-                            <a
-                              key={`${l.url}-${li}`}
-                              href={l.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline"
-                            >
-                              {l.name} ↗
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </article>
+                    <SignalRow key={`${e.s.id}-${e.s.signal_key}-${i}`} e={e} />
                   ))}
                 </div>
               )}

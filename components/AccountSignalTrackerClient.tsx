@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { AnalyzeResult, ParsedCompany, StoredSignal, StoredSignalsResult } from '@/lib/types'
 import StoredSignalsDashboard from '@/components/StoredSignalsDashboard'
@@ -61,67 +61,26 @@ function normalizeStoredPayload(json: StoredPayload, requestedCount: number): St
   }
 }
 
+type ViewMode = 'dashboard' | 'import'
+
+const MAX_VISIBLE_ROWS = 100
+
 export default function AccountSignalTrackerClient() {
-  const [companies, setCompanies] = useState<ParsedCompany[]>([])
-  const [fileName, setFileName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
-  const [analysisResult, setAnalysisResult] = useState<AnalyzeResult | null>(null)
-  const [fetchingStored, setFetchingStored] = useState(false)
-  const [storedError, setStoredError] = useState<string | null>(null)
+  const [view, setView] = useState<ViewMode>('dashboard')
   const [storedResult, setStoredResult] = useState<StoredSignalsResult | null>(null)
-  const [initialLoading, setInitialLoading] = useState(true)
-  const [showUpload, setShowUpload] = useState(false)
+  const [storedError, setStoredError] = useState<string | null>(null)
+  const [loadingStored, setLoadingStored] = useState(true)
+  const [importList, setImportList] = useState<ParsedCompany[]>([])
+  const [typedCompany, setTypedCompany] = useState('')
+  const [importError, setImportError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [fileName, setFileName] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const idCounter = useRef(0)
 
-  useEffect(() => {
-    let active = true
-    const loadInitial = async () => {
-      try {
-        const res = await fetch('/api/all-stored-signals', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ limit: 1000, offset: 0, includeSignals: true }),
-        })
-        let json: StoredPayload = {}
-        try {
-          json = (await res.json()) as StoredPayload
-        } catch {
-          json = {}
-        }
-        if (!active) return
-        if (!res.ok || json.error) {
-          setStoredError(
-            json.error ?? 'Could not load stored signals. Click \u201cLoad Stored Signals\u201d to retry.'
-          )
-          return
-        }
-        if (!Array.isArray(json.signals) || typeof json.total !== 'number') {
-          setStoredError('Unexpected response from the signal read API')
-          return
-        }
-        const fallbackCount = Array.isArray(json.companies) ? json.companies.length : 0
-        setStoredResult(normalizeStoredPayload(json, fallbackCount))
-      } catch {
-        if (active) {
-          setStoredError(
-            'Could not reach the signal read API. Click \u201cLoad Stored Signals\u201d to retry.'
-          )
-        }
-      } finally {
-        if (active) setInitialLoading(false)
-      }
-    }
-    void loadInitial()
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const fetchAllStored = async (): Promise<void> => {
-    setFetchingStored(true)
+  const fetchAllStored = useCallback(async (): Promise<void> => {
+    setLoadingStored(true)
     setStoredError(null)
     try {
       const res = await fetch('/api/all-stored-signals', {
@@ -158,59 +117,37 @@ export default function AccountSignalTrackerClient() {
     } catch {
       setStoredError('Could not reach the signal read API. Check your connection and try again.')
     } finally {
-      setFetchingStored(false)
+      setLoadingStored(false)
     }
+  }, [])
+
+  useEffect(() => {
+    void fetchAllStored()
+  }, [fetchAllStored])
+
+  const nextId = (): string => {
+    idCounter.current += 1
+    return `company-${Date.now()}-${idCounter.current}`
   }
 
-  const fetchStoredForCompanies = async (list: ParsedCompany[]): Promise<void> => {
-    if (list.length === 0) return
-    setFetchingStored(true)
-    setStoredError(null)
-    try {
-      const res = await fetch('/api/stored-signals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companies: list.map((c) => ({ company_name: c.name })),
-          limit: 1000,
-        }),
+  const addCompanies = (items: ParsedCompany[]) => {
+    setImportList((prev) => {
+      const seen = new Set(prev.map((c) => c.name.toLowerCase()))
+      const merged = [...prev]
+      items.forEach((c) => {
+        const key = c.name.toLowerCase()
+        if (key === '' || seen.has(key)) return
+        seen.add(key)
+        merged.push(c)
       })
-      let json: StoredPayload = {}
-      try {
-        json = (await res.json()) as StoredPayload
-      } catch {
-        json = {}
-      }
-      if (!res.ok) {
-        if (res.status === 500 && Array.isArray(json.missing) && json.missing.length > 0) {
-          setStoredError(
-            `Missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}. Add ${json.missing.length === 1 ? 'it' : 'them'} to .env.local and restart the server.`
-          )
-          return
-        }
-        setStoredError(json.error ?? `Fetching stored signals failed with status ${res.status}`)
-        return
-      }
-      if (json.error) {
-        setStoredError(json.error)
-        return
-      }
-      if (!Array.isArray(json.signals) || typeof json.total !== 'number') {
-        setStoredError('Unexpected response from the signal read API')
-        return
-      }
-      setStoredResult(normalizeStoredPayload(json, list.length))
-    } catch {
-      setStoredError('Could not reach the signal read API. Check your connection and try again.')
-    } finally {
-      setFetchingStored(false)
-    }
+      return merged
+    })
   }
 
   const parseFile = async (file: File) => {
     const ext = file.name.toLowerCase().split('.').pop() ?? ''
     if (ext !== 'csv' && ext !== 'xlsx') {
-      setError('Unsupported file format. Please upload a CSV or XLSX file.')
+      setImportError('Unsupported file format. Please upload a CSV or XLSX file.')
       return
     }
     try {
@@ -218,17 +155,17 @@ export default function AccountSignalTrackerClient() {
       const workbook = XLSX.read(buffer, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
       if (!sheetName) {
-        setError('The uploaded file does not contain any sheets.')
+        setImportError('The uploaded file does not contain any sheets.')
         return
       }
       const sheet = workbook.Sheets[sheetName]
       if (!sheet) {
-        setError('The uploaded file does not contain any data.')
+        setImportError('The uploaded file does not contain any data.')
         return
       }
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
       const parsed: ParsedCompany[] = []
-      rows.forEach((row, i) => {
+      rows.forEach((row) => {
         const keys = Object.keys(row)
         const companyKey = keys.find((k) => {
           const n = normalizeKey(k)
@@ -248,29 +185,23 @@ export default function AccountSignalTrackerClient() {
           raw[k] = String(row[k])
         })
         parsed.push({
-          id: `company-${i}`,
+          id: nextId(),
           name,
           location: locationParts.join(', '),
           raw,
         })
       })
       if (parsed.length === 0) {
-        setError(
+        setImportError(
           'No company names were found. Expected a column named Company, Company_Name or Company Name.'
         )
         return
       }
-      setError(null)
-      setCompanies(parsed)
+      setImportError(null)
       setFileName(file.name)
-      setAnalysisResult(null)
-      setAnalyzeError(null)
-      setStoredError(null)
-      setStoredResult(null)
-      setShowUpload(false)
-      void fetchStoredForCompanies(parsed)
+      addCompanies(parsed)
     } catch {
-      setError('Could not parse the uploaded file. Please check the file and try again.')
+      setImportError('Could not parse the uploaded file. Please check the file and try again.')
     }
   }
 
@@ -281,34 +212,46 @@ export default function AccountSignalTrackerClient() {
     void parseFile(file)
   }
 
-  const handleUploadDifferent = () => {
-    setError(null)
-    setShowUpload(true)
+  const handleAddTyped = () => {
+    const rawInput = typedCompany.trim()
+    if (rawInput === '') return
+    const parts = rawInput
+      .split(',')
+      .map((p) => p.trim())
+      .filter((p) => p !== '')
+    const name = parts[0] ?? ''
+    if (name === '') return
+    const raw: Record<string, string> = { Company: name }
+    if (parts[1]) raw['City'] = parts[1]
+    if (parts[2]) raw['State'] = parts[2]
+    if (parts[3]) raw['Country'] = parts[3]
+    addCompanies([
+      {
+        id: nextId(),
+        name,
+        location: parts.slice(1).join(', '),
+        raw,
+      },
+    ])
+    setTypedCompany('')
+    setImportError(null)
   }
 
-  const scopedToUpload = companies.length > 0
-  const analyzeScopeCount = scopedToUpload
-    ? companies.length
-    : (storedResult?.companies ?? []).length
+  const handleRemove = (id: string) => {
+    setImportList((prev) => prev.filter((c) => c.id !== id))
+  }
 
-  const handleAnalyze = async () => {
-    if (analyzing) return
-    const scopedCompanies: Record<string, string>[] = scopedToUpload
-      ? companies.map((c) => toApiCompany(c))
-      : (storedResult?.companies ?? []).map((c) => ({ company_name: c.company_name }))
-    if (scopedCompanies.length === 0) {
-      setAnalyzeError('No companies are in scope to analyze yet.')
-      return
-    }
-    setAnalyzing(true)
-    setAnalyzeError(null)
+  const runAnalyzeInBackground = async (
+    companiesPayload: Record<string, string>[],
+    analyzeFileName: string
+  ): Promise<void> => {
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companies: scopedCompanies,
-          fileName: scopedToUpload ? fileName : 'all-companies',
+          companies: companiesPayload,
+          fileName: analyzeFileName,
           signalTypes: 'funding,csuite,product,partnership',
           lookbackDays: 90,
           batchSize: 10,
@@ -322,256 +265,285 @@ export default function AccountSignalTrackerClient() {
       }
       if (!res.ok) {
         if (res.status === 500 && Array.isArray(json.missing) && json.missing.length > 0) {
-          setAnalyzeError(
-            `Missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}. Add ${json.missing.length === 1 ? 'it' : 'them'} to .env.local and restart the server.`
+          setToast(
+            `Background analysis failed — missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}.`
           )
           return
         }
-        setAnalyzeError(json.error ?? `Analysis failed with status ${res.status}`)
+        setToast(json.error ?? `Background analysis failed with status ${res.status}`)
         return
       }
       if (json.error) {
-        setAnalyzeError(json.error)
+        setToast(json.error)
         return
       }
-      if (
-        typeof json.run_id !== 'string' ||
-        typeof json.total_signals !== 'number' ||
-        !json.signals_by_family
-      ) {
-        setAnalyzeError('Unexpected response from the analyze API')
-        return
-      }
-      setAnalysisResult({
-        run_id: json.run_id,
-        file_name:
-          typeof json.file_name === 'string'
-            ? json.file_name
-            : scopedToUpload
-              ? fileName
-              : 'all-companies',
-        companies_processed:
-          typeof json.companies_processed === 'number'
-            ? json.companies_processed
-            : scopedCompanies.length,
-        signals_by_family: {
-          funding: json.signals_by_family.funding ?? 0,
-          csuite: json.signals_by_family.csuite ?? 0,
-          product: json.signals_by_family.product ?? 0,
-          partnership: json.signals_by_family.partnership ?? 0,
-        },
-        total_signals: json.total_signals,
-        status:
-          json.status === 'partial' || json.status === 'failed' ? json.status : 'completed',
-      })
+      const found =
+        typeof json.total_signals === 'number'
+          ? ` — ${json.total_signals} signal${json.total_signals === 1 ? '' : 's'} found`
+          : ''
+      setToast(`Background analysis completed${found}. Click \u201cRefresh Dashboard\u201d to see the latest data.`)
     } catch {
-      setAnalyzeError('Could not reach the analyze API. Check your connection and try again.')
-    } finally {
-      setAnalyzing(false)
+      setToast('Background analysis could not reach the API. Please try again.')
     }
   }
 
-  const handleFetchStored = async () => {
-    if (analyzing || fetchingStored) return
-    if (scopedToUpload) {
-      await fetchStoredForCompanies(companies)
-    } else {
-      await fetchAllStored()
+  const handleSaveAnalyze = () => {
+    if (importList.length === 0) {
+      setImportError('Add at least one company before running analysis.')
+      return
     }
+    const companiesPayload = importList.map((c) => toApiCompany(c))
+    const analyzeFileName = fileName !== '' ? fileName : 'imported-companies'
+    void runAnalyzeInBackground(companiesPayload, analyzeFileName)
+    setView('dashboard')
+    setToast('Analysis is running in the background. This may take a few minutes.')
+    void fetchAllStored()
   }
 
-  const subtitle = storedResult
-    ? `${storedResult.total} stored signals \u00b7 Funding ${storedResult.counts_by_family.funding} \u00b7 C-Suite ${storedResult.counts_by_family.csuite} \u00b7 Product ${storedResult.counts_by_family.product} \u00b7 Partnership ${storedResult.counts_by_family.partnership}`
-    : ''
-
-  if (initialLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F7F8F9]">
-        <div className="flex flex-col items-center gap-3">
-          <div
-            className="h-10 w-10 animate-spin rounded-full border-4 border-[#1A73E8] border-t-transparent"
-            aria-hidden="true"
-          />
-          <p className="text-sm text-[#6D717F]">Loading account signals\u2026</p>
-        </div>
-      </main>
-    )
-  }
-
-  if (showUpload) {
-    return (
-      <main className="min-h-screen bg-[#F7F8F9] px-6 py-10">
-        <div className="mx-auto w-full max-w-[720px]">
-          <h1 className="text-2xl font-semibold text-[#2C2D33]">Upload Company List</h1>
-          <p className="mt-1 text-sm text-[#6D717F]">
-            Upload a CSV or XLSX file with a Company / Company Name column. The dashboard will show
-            signals scoped to only those companies.
-          </p>
-          <div
-            className={`mt-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white px-6 py-14 text-center transition-colors ${
-              isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#E2E3E5]'
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setIsDragging(true)
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setIsDragging(false)
-              handleFiles(e.dataTransfer.files)
-            }}
-          >
-            <span className="text-4xl" aria-hidden="true">
-              \ud83d\udcc4
-            </span>
-            <p className="mt-4 text-base font-medium text-[#2C2D33]">
-              Drag &amp; drop your CSV or XLSX file here
-            </p>
-            <p className="mt-1 text-sm text-[#6D717F]">or</p>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="mt-3 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#155DBB]"
-            >
-              Browse Files
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx"
-              className="hidden"
-              onChange={(e) => {
-                handleFiles(e.target.files)
-                e.target.value = ''
-              }}
-            />
-          </div>
-          {error !== null && (
-            <div className="mt-4 rounded-xl border border-[#F8B4B4] bg-[#FEF3F3] px-4 py-3 text-sm text-[#B91C1C]">
-              {error}
-            </div>
-          )}
-          {storedResult !== null && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowUpload(false)
-                setError(null)
-              }}
-              className="mt-6 text-sm font-medium text-[#1A73E8] transition-colors hover:text-[#155DBB]"
-            >
-              \u2190 Back to dashboard
-            </button>
-          )}
-        </div>
-      </main>
-    )
-  }
+  const visibleRows = importList.slice(0, MAX_VISIBLE_ROWS)
 
   return (
-    <main className="min-h-screen bg-[#F7F8F9] px-6 py-8">
-      <div className="mx-auto w-full max-w-[1280px]">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-[#2C2D33]">Account Signal Tracker</h1>
-            <p className="mt-1 text-sm text-[#6D717F]">
-              {scopedToUpload
-                ? `Scoped to ${companies.length} ${companies.length === 1 ? 'company' : 'companies'} from ${fileName}`
-                : 'Showing signals for all tracked companies'}
-            </p>
-            {subtitle !== '' && <p className="mt-1 text-xs text-[#9AA0AE]">{subtitle}</p>}
+    <div className="min-h-screen bg-[#F7F8F9]">
+      <header className="sticky top-0 z-40 border-b border-[#E2E3E5] bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#1A73E8]" aria-hidden="true" />
+            <h1 className="text-base font-semibold text-[#2C2D33]">Account Signal Tracker</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          {view === 'dashboard' ? (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setImportError(null)
+                  setView('import')
+                }}
+                className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
+              >
+                Import Company
+              </button>
+              <button
+                type="button"
+                onClick={() => void fetchAllStored()}
+                disabled={loadingStored}
+                aria-label="Refresh dashboard"
+                className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
+              >
+                {loadingStored ? 'Refreshing\u2026' : 'Refresh Dashboard'}
+              </button>
+            </div>
+          ) : (
+            <div className="ml-auto">
+              <button
+                type="button"
+                onClick={() => setView('dashboard')}
+                className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#575A66] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
+              >
+                \u2190 Back to Dashboard
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        {view === 'import' ? (
+          <section className="mx-auto max-w-3xl">
+            <div className="rounded-2xl border border-[#E2E3E5] bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-semibold text-[#2C2D33]">Import Companies</h2>
+              <p className="mt-1 text-sm text-[#6D717F]">
+                Add companies one at a time or upload a CSV/XLSX file, then save the list and run
+                signal analysis in the background.
+              </p>
+
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={typedCompany}
+                  onChange={(e) => setTypedCompany(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddTyped()
+                    }
+                  }}
+                  placeholder="Add a company (e.g. Acme Inc,San Francisco,CA,USA)"
+                  aria-label="Add a company"
+                  className="flex-1 rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#9AA0AE] focus:border-[#1A73E8] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddTyped}
+                  disabled={typedCompany.trim() === ''}
+                  className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
+                >
+                  Add Company
+                </button>
+              </div>
+
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="Upload a CSV or XLSX file of companies"
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    fileInputRef.current?.click()
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setIsDragging(true)
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setIsDragging(false)
+                  handleFiles(e.dataTransfer.files)
+                }}
+                className={`mt-4 cursor-pointer rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
+                  isDragging
+                    ? 'border-[#1A73E8] bg-[#F3F8FE]'
+                    : 'border-[#E2E3E5] bg-[#F7F8F9] hover:border-[#1A73E8]'
+                }`}
+              >
+                <p className="text-2xl" aria-hidden="true">\ud83d\udcc4</p>
+                <p className="mt-2 text-sm font-medium text-[#2C2D33]">
+                  Drag &amp; drop a CSV or XLSX file here, or click to browse
+                </p>
+                <p className="mt-1 text-xs text-[#6D717F]">
+                  Expected a column named Company, Company_Name or Company Name
+                </p>
+                {fileName !== '' && (
+                  <p className="mt-2 text-xs font-medium text-[#1A73E8]">Loaded: {fileName}</p>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+
+              {importError !== null && (
+                <p role="alert" className="mt-3 text-sm font-medium text-[#F31A1A]">
+                  {importError}
+                </p>
+              )}
+
+              <div className="mt-6">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#6D717F]">
+                  {visibleRows.length} of {importList.length}{' '}
+                  {importList.length === 1 ? 'company' : 'companies'} in the list
+                </p>
+                {importList.length === 0 ? (
+                  <p className="mt-3 rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] px-4 py-6 text-center text-sm text-[#6D717F]">
+                    No companies in the list yet. Type a company above or upload a file.
+                  </p>
+                ) : (
+                  <ul className="mt-3 divide-y divide-[#F0F1F3] rounded-xl border border-[#E2E3E5]">
+                    {visibleRows.map((c) => (
+                      <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-[#2C2D33]">{c.name}</p>
+                          {c.location !== '' && (
+                            <p className="truncate text-xs text-[#6D717F]">{c.location}</p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(c.id)}
+                          aria-label={`Remove ${c.name}`}
+                          className="rounded-lg border border-[#E2E3E5] px-3 py-1 text-xs font-medium text-[#F31A1A] transition-colors hover:border-[#F31A1A] hover:bg-[#FEF2F2]"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveAnalyze}
+                  disabled={importList.length === 0}
+                  className="rounded-xl bg-[#1A73E8] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
+                >
+                  Save &amp; Analyze
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : loadingStored && storedResult === null ? (
+          <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-40 animate-pulse rounded-2xl bg-[#EDEEF0]" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="h-72 animate-pulse rounded-2xl bg-[#EDEEF0]" />
+              <div className="h-72 animate-pulse rounded-2xl bg-[#EDEEF0]" />
+            </div>
+          </div>
+        ) : storedError !== null && storedResult === null ? (
+          <div
+            className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center shadow-sm"
+            role="alert"
+          >
+            <p className="text-3xl" aria-hidden="true">\u26a0\ufe0f</p>
+            <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load the dashboard</p>
+            <p className="mt-1 text-xs text-[#6D717F]">{storedError}</p>
             <button
               type="button"
-              onClick={handleUploadDifferent}
-              className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:bg-[#F7F8F9]"
+              onClick={() => void fetchAllStored()}
+              className="mt-4 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB]"
             >
-              Upload Different File
+              Retry
             </button>
+          </div>
+        ) : storedResult !== null ? (
+          <>
+            {storedError !== null && (
+              <div
+                className="mb-4 rounded-xl border border-[#FB8145]/40 bg-[#FFF7ED] px-4 py-3 text-sm text-[#9A3412]"
+                role="alert"
+              >
+                {storedError}
+              </div>
+            )}
+            <StoredSignalsDashboard result={storedResult} />
+          </>
+        ) : null}
+      </main>
+
+      {toast !== null && (
+        <div
+          className="fixed bottom-4 right-4 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-[#E2E3E5] bg-white p-4 shadow-lg"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-start gap-3">
+            <span className="text-lg" aria-hidden="true">\u23f3</span>
+            <p className="flex-1 text-sm text-[#2C2D33]">{toast}</p>
             <button
               type="button"
-              onClick={() => void handleAnalyze()}
-              disabled={analyzing || analyzeScopeCount === 0}
-              className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#155DBB] disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => setToast(null)}
+              aria-label="Dismiss notification"
+              className="text-xs font-semibold text-[#1A73E8] transition-colors hover:text-[#0A2E5D]"
             >
-              Analyze Signals
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleFetchStored()}
-              disabled={fetchingStored || analyzing}
-              className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:bg-[#F7F8F9] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Load Stored Signals
+              Dismiss
             </button>
           </div>
         </div>
-
-        {analyzing && (
-          <div className="mb-4 flex items-center gap-3 rounded-xl border border-[#BFDBFE] bg-[#F3F8FE] px-4 py-3 text-sm text-[#0A2E5D]">
-            <span
-              className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A73E8] border-t-transparent"
-              aria-hidden="true"
-            />
-            Analyzing {analyzeScopeCount} {analyzeScopeCount === 1 ? 'company' : 'companies'}
-            {scopedToUpload ? ` from ${fileName}` : ' (all companies)'}\u2026 This can take a few
-            minutes.
-          </div>
-        )}
-
-        {analyzeError !== null && (
-          <div className="mb-4 rounded-xl border border-[#F8B4B4] bg-[#FEF3F3] px-4 py-3 text-sm text-[#B91C1C]">
-            {analyzeError}
-          </div>
-        )}
-
-        {storedError !== null && (
-          <div className="mb-4 rounded-xl border border-[#F8B4B4] bg-[#FEF3F3] px-4 py-3 text-sm text-[#B91C1C]">
-            {storedError}
-          </div>
-        )}
-
-        {analysisResult !== null && (
-          <div className="mb-4 rounded-xl border border-[#BBEBD5] bg-[#F0FBF6] px-4 py-3 text-sm text-[#14532D]">
-            Analysis {analysisResult.status} \u00b7 Run {analysisResult.run_id} \u00b7{' '}
-            {analysisResult.companies_processed} companies processed \u00b7{' '}
-            {analysisResult.total_signals} signals found (Funding{' '}
-            {analysisResult.signals_by_family.funding} \u00b7 C-Suite{' '}
-            {analysisResult.signals_by_family.csuite} \u00b7 Product{' '}
-            {analysisResult.signals_by_family.product} \u00b7 Partnership{' '}
-            {analysisResult.signals_by_family.partnership}). Click \u201cLoad Stored Signals\u201d
-            to refresh the dashboard.
-          </div>
-        )}
-
-        {fetchingStored ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-[#E2E3E5] bg-white px-6 py-20">
-            <div
-              className="h-10 w-10 animate-spin rounded-full border-4 border-[#1A73E8] border-t-transparent"
-              aria-hidden="true"
-            />
-            <p className="mt-3 text-sm text-[#6D717F]">
-              Loading stored signals
-              {scopedToUpload ? ` for ${companies.length} companies` : ''}\u2026
-            </p>
-          </div>
-        ) : storedResult !== null ? (
-          <StoredSignalsDashboard result={storedResult} />
-        ) : (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-[#E2E3E5] bg-white px-6 py-20 text-center">
-            <span className="text-4xl" aria-hidden="true">
-              \ud83d\udce1
-            </span>
-            <p className="mt-4 text-base font-medium text-[#2C2D33]">No signals loaded yet</p>
-            <p className="mt-1 max-w-md text-sm text-[#6D717F]">
-              Click \u201cLoad Stored Signals\u201d to retry loading all companies, or use
-              \u201cUpload Different File\u201d to scope the dashboard to a specific company list.
-            </p>
-          </div>
-        )}
-      </div>
-    </main>
+      )}
+    </div>
   )
 }
