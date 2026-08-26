@@ -6,6 +6,8 @@ export const maxDuration = 300
 const DEFAULT_ALL_SIGNALS_API_URL =
   'https://agent.thearena.ai/api/workflows/8983ed27-5c88-4505-9847-ad4ed0deaf65/execute'
 
+const DEFAULT_ALL_SIGNALS_API_KEY = 'sk-sim-u3_2d6AaWsa4zd2yoaaw9IyWfpHVTi_F'
+
 function getApiUrl(): string {
   const fromEnv = process.env.ABM_ALL_SIGNALS_API_URL
   return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_ALL_SIGNALS_API_URL
@@ -15,7 +17,8 @@ function getApiKey(): string {
   const dedicated = process.env.ABM_ALL_SIGNALS_API_KEY
   if (dedicated && dedicated.length > 0) return dedicated
   const shared = process.env.ABM_API_KEY
-  return shared && shared.length > 0 ? shared : ''
+  if (shared && shared.length > 0) return shared
+  return DEFAULT_ALL_SIGNALS_API_KEY
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
