@@ -1,10 +1,10 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T17:23:40.990Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T17:50:02.845Z.
 
 ## Overview
 
-ABM account signal tracking dashboard with company import (CSV/XLSX), background analysis, and a stored-signals overview with KPI cards, charts, and a scrollable Recent Signals feed.
+ABM account signal tracker dashboard with company import, stored signal analytics, and expandable company rows showing signal history, tech stack, and keywords.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
@@ -12,13 +12,11 @@ ABM account signal tracking dashboard with company import (CSV/XLSX), background
 ## Features
 
 - Import companies via CSV/XLSX or manual entry
-- Background signal analysis via ABM workflow API
-- Stored signals dashboard with KPI cards and sparklines
-- Weekly severity and family trend charts
-- Recent Signals card with internal scrolling
-- Signals feed with type, week and industry filters
-- Companies table with per-family counts
-- High-severity insights view
+- Stored signal analytics with KPI cards and charts
+- Companies tab with expandable inline detail rows (Signal History, Tech Stack, Keywords)
+- Signal feed with type and week filters
+- Weekly trends by signal family
+- Insights summary tiles
 
 ## Tech Stack
 
@@ -158,25 +156,39 @@ ABM account signal tracking dashboard with company import (CSV/XLSX), background
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T17:23:40.990Z
+- **Updated at:** 2026-08-26T17:50:02.845Z
 - **Request:** SCOPE LOCK — obey exactly:
-- SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the single edit described below.
+- SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the change described below.
 - Do NOT change the theme, colors, fonts, spacing, card styling, layout, or any other component.
 - Do NOT refactor, rename, reorder, reformat, or "clean up" anything.
 - Do NOT add dependencies, env vars, config, or new API routes.
-- Do NOT touch any API endpoint, data-fetching logic, response parsing, the other tabs, the buttons, the Import screen, or any file under app/api/ or lib/.
-- Do NOT modify prisma/schema.prisma, package.json, or any config. Leave the build exactly as-is (the prisma db push --accept-data-loss build fix from before must stay untouched).
-- Touch ONLY the single client component that renders the Overview tab's "Recent Signals" card.
+- Do NOT change any API endpoint, request/response shape, data-fetching logic, or response parsing. Reuse ONLY data the app already fetches/has for each company.
+- Do NOT touch any file under app/api/ or lib/, the Overview tab, the Signals tab, the Trends tab, the Insights tab, the dashboard buttons, or the Import screen.
+- Do NOT modify prisma/schema.prisma, package.json, or any config. Leave the build exactly as-is (the prisma db push --accept-data-loss build fix must stay untouched).
+- Touch ONLY the single client component that renders the COMPANIES tab table.
 
 THE ONE CHANGE (make exactly this, nothing more):
-On the OVERVIEW tab, the "Recent Signals" card currently grows with its content, so scrolling the signal list scrolls the WHOLE PAGE. Change it so the signal list scrolls INSIDE the card only:
-- Give the Recent Signals list container a fixed max height (e.g. max-h-96 / around 400px — pick a value that matches the existing card sizing and shows several rows) and make it vertically scrollable (overflow-y-auto), so its scrollbar is internal.
-- The card itself, its header/title, its border, padding, and position must stay exactly as they are. Only the inner list region scrolls; the page and the card do not grow.
-- Do NOT change the Recent Signals data, the row markup/content, or how signals are fetched or rendered — only the container's height/overflow.
-- Apply this ONLY to the Recent Signals list on the Overview tab. Do not alter scrolling anywhere else (other tabs, other cards, the page).
+On the COMPANIES tab, make each company ROW expandable so clicking it drags down an inline detail panel for THAT company, directly beneath its row. Match the reference screenshot.
+
+Behavior:
+- Clicking a company row toggles an expanded detail section immediately below that row (accordion-style). Clicking it again collapses it. Only one row expands/collapses independently — do not navigate away or open a modal; the detail must expand INLINE within the table/list, pushing the rows below it down.
+- Keep the existing row exactly as-is (#, COMPANY, INDUSTRY, LOCATION, EMPLOYEES, REVENUE, FUNDING STAGE, LAST SIGNAL, SIGNALS, ACTIONS). Do not change the columns, the Website/Search action buttons, or the signals count badge. The Website/Search buttons must still work and must NOT toggle the expansion (stop click propagation on them).
+- Add a subtle affordance that the row is expandable (e.g. a chevron that rotates on expand) using the existing styling — no new color theme.
+
+The expanded detail panel must show, using data the app ALREADY has for that company (do NOT add new fetches):
+- "Signal History": a vertical list of that company's signals. Each item shows a severity badge (LOW / MEDIUM / HIGH) styled by severity, the signal type (e.g. News Mention, Partnership, C-Suite Change), the signal title/description, a relative time (e.g. "2mo ago"), and a "Source" link if a source URL exists. Match the two-column reference layout: Signal History on the left.
+- "Tech Stack": on the right, the company's tech stack rendered as small pill/tag chips (e.g. Azure, Snowflake). Only render if data exists.
+- "Keywords": below Tech Stack on the right, the company's keywords as pill/tag chips (e.g. enterprise AI, partner network...). Only render if data exists.
+- If a section has no data, hide that section gracefully (no empty headers, no crash).
+
+Constraints:
+- Reuse existing severity-badge and tag/pill styles if the component already has them; do not invent a new visual language.
+- Do NOT change how companies or signals are fetched or parsed — only render already-available fields in the expanded panel. If the company object doesn't already include signals/techStack/keywords, use whatever equivalent fields already exist on it; STOP and report if none exist rather than adding a fetch.
+- Apply this ONLY to the Companies tab. Do not change scrolling or expansion anywhere else.
 
 AFTER IMPLEMENTING:
-- Confirm you edited exactly ONE file and changed only the Recent Signals list container's max-height/overflow.
-- Confirm the page no longer scrolls when scrolling the Recent Signals list — the scroll is contained inside the card.
-- Confirm npm run build exits 0 and nothing else (styling, other tabs, buttons, Import screen, APIs, schema, build script) changed.
-- Print the exact before/after of the lines you changed and the name of the file.
+- Confirm you edited exactly ONE file (the Companies tab component).
+- Confirm clicking a company row expands an inline panel with Signal History + Tech Stack + Keywords, and clicking again collapses it; Website/Search buttons still work without toggling.
+- Confirm no API/endpoint/parsing/schema/build/other-tab changes were made.
+- Confirm npm run build exits 0.
+- Print the name of the file changed and the before/after of the key lines (row click handler + the new expanded panel JSX).
