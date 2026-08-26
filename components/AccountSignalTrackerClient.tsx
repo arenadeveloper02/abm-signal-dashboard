@@ -273,7 +273,7 @@ export default function AccountSignalTrackerClient() {
     : 'No analysis loaded yet'
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div className="mx-auto max-w-6xl px-4 py-6">
       <nav aria-label="Breadcrumb" className="text-sm">
         <span>Agents</span>
         <span aria-hidden="true"> &gt; </span>
@@ -325,15 +325,17 @@ export default function AccountSignalTrackerClient() {
 
       {companies.length === 0 && (
         <div className="mt-10 flex flex-col items-center justify-center text-center">
-          <h2 className="text-lg font-medium">No companies are currently configured</h2>
-          <p className="mt-2 max-w-xl text-sm">
-            Upload a company list (CSV or XLSX) to start tracking ABM signals. Columns such as
-            Company Name, City, State and Country will be detected automatically.
-          </p>
           <div
-            className={`mt-6 w-full max-w-xl rounded-2xl border-2 border-dashed p-10 transition-colors ${
-              isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#D6D9E0]'
-            }`}
+            role="button"
+            tabIndex={0}
+            aria-label="Upload a CSV or XLSX company list"
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                fileInputRef.current?.click()
+              }
+            }}
             onDragOver={(e) => {
               e.preventDefault()
               setIsDragging(true)
@@ -344,15 +346,14 @@ export default function AccountSignalTrackerClient() {
               setIsDragging(false)
               handleFiles(e.dataTransfer.files)
             }}
+            className={`w-full max-w-xl cursor-pointer rounded-2xl border-2 border-dashed px-8 py-14 transition-colors ${
+              isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#D0D3DA]'
+            }`}
           >
-            <p className="text-sm text-[#6D717F]">Drag and drop a CSV or XLSX file here, or</p>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="mt-3 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB]"
-            >
-              Upload Company List
-            </button>
+            <p className="text-3xl" aria-hidden="true">📄</p>
+            <h2 className="mt-3 text-lg font-semibold">Upload your company list</h2>
+            <p className="mt-1 text-sm">Drag and drop a CSV or XLSX file here, or click to browse.</p>
+            <p className="mt-2 text-xs">A column named Company, Company_Name or Company Name is required.</p>
           </div>
           {error && (
             <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
@@ -362,136 +363,83 @@ export default function AccountSignalTrackerClient() {
         </div>
       )}
 
-      {companies.length > 0 && storedResult && (
-        <div className="mt-6">
-          {storedError && (
-            <div
-              className="mb-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
-              role="alert"
-            >
-              {storedError}
-            </div>
-          )}
-          <StoredSignalsDashboard
-            result={storedResult}
-            onRefresh={() => void handleFetchStored()}
-            onImport={() => {
-              setStoredResult(null)
-              setStoredError(null)
-            }}
-            refreshing={fetchingStored}
-          />
-        </div>
-      )}
-
-      {companies.length > 0 && !storedResult && (
-        <div className="mt-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm">
-              <span className="font-medium">{fileName}</span> {'\u00b7'} {companies.length} compan
-              {companies.length === 1 ? 'y' : 'ies'} loaded
+      {companies.length > 0 && (
+        <div className="mt-6 space-y-4">
+          {error && (
+            <p className="text-sm text-[#F31A1A]" role="alert">
+              {error}
             </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">{fileName}</p>
+              <p className="text-xs">
+                {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} loaded
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => void handleAnalyze()}
-                disabled={companies.length === 0 || analyzing || fetchingStored}
-                className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded border px-4 py-2 text-sm font-medium"
               >
-                {analyzing ? 'Analyzing\u2026' : 'Analyze'}
+                Upload Different File
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAnalyze()}
+                disabled={analyzing}
+                className="rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {analyzing ? 'Analyzing…' : 'Analyze Signals'}
               </button>
               <button
                 type="button"
                 onClick={() => void handleFetchStored()}
-                disabled={companies.length === 0 || analyzing || fetchingStored}
-                className="rounded-xl border border-[#1A73E8] bg-white px-4 py-2 text-sm font-semibold text-[#1A73E8] transition-colors hover:bg-[#F3F8FE] disabled:opacity-60"
-              >
-                {fetchingStored ? 'Fetching\u2026' : 'Fetch Stored Signals'}
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
                 disabled={analyzing || fetchingStored}
-                className="rounded-xl border border-[#D6D9E0] px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] disabled:opacity-60"
+                className="rounded bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
-                Upload New List
+                {fetchingStored ? 'Loading…' : 'Load Stored Signals'}
               </button>
             </div>
           </div>
-
-          {error && (
-            <div
-              className="mt-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
-              role="alert"
-            >
-              {error}
-            </div>
-          )}
           {analyzeError && (
-            <div
-              className="mt-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
-              role="alert"
-            >
+            <p className="text-sm text-[#F31A1A]" role="alert">
               {analyzeError}
-            </div>
+            </p>
           )}
           {storedError && (
-            <div
-              className="mt-4 rounded-2xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 p-4 text-sm text-[#B00020]"
-              role="alert"
-            >
+            <p className="text-sm text-[#F31A1A]" role="alert">
               {storedError}
-            </div>
+            </p>
           )}
-
-          {analysisResult && (
-            <div
-              className="mt-4 rounded-2xl border border-[#3BC884]/50 bg-[#3BC884]/10 p-4"
-              role="status"
-            >
-              <p className="text-sm font-medium text-[#2C2D33]">
-                Analysis run {analysisResult.run_id} {'\u00b7'} {analysisResult.status}
-              </p>
-              <p className="mt-1 text-xs text-[#6D717F]">
-                {analysisResult.companies_processed} companies processed {'\u00b7'}{' '}
-                {analysisResult.total_signals} signals found
-              </p>
-            </div>
-          )}
-
-          <div className="mt-4 overflow-hidden rounded-2xl border border-[#E4E6EB]">
-            {visibleCompanies.length === 0 ? (
-              <EmptyState
-                icon="\uD83D\uDD0D"
-                title="No matching companies"
-                message="No companies match your search. Clear the search box to see the full list."
-              />
-            ) : (
+          {visibleCompanies.length === 0 ? (
+            <EmptyState
+              icon="🔍"
+              title="No companies match your search"
+              message="Try a different search term or clear the search box."
+            />
+          ) : (
+            <div className="overflow-hidden rounded-xl border">
               <table className="w-full text-sm">
                 <thead>
-                  <tr>
-                    <th className="border-b border-[#E4E6EB] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]">
-                      Company
-                    </th>
-                    <th className="border-b border-[#E4E6EB] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]">
-                      Location
-                    </th>
-                    <th className="border-b border-[#E4E6EB] bg-[#F7F8F9] px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]">
-                      Actions
-                    </th>
+                  <tr className="border-b text-left">
+                    <th className="px-4 py-2 font-medium">Company</th>
+                    <th className="px-4 py-2 font-medium">Location</th>
+                    <th className="px-4 py-2 text-right font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleCompanies.map((c) => (
-                    <tr key={c.id} className="border-b border-[#F0F1F4] last:border-b-0">
-                      <td className="px-4 py-3 font-medium text-[#2C2D33]">{c.name}</td>
-                      <td className="px-4 py-3 text-[#6D717F]">{c.location || '\u2014'}</td>
-                      <td className="px-4 py-3 text-right">
+                    <tr key={c.id} className="border-b last:border-b-0">
+                      <td className="px-4 py-2 font-medium">{c.name}</td>
+                      <td className="px-4 py-2">{c.location || '—'}</td>
+                      <td className="px-4 py-2 text-right">
                         <button
                           type="button"
                           onClick={() => handleRemove(c.id)}
                           aria-label={`Remove ${c.name}`}
-                          className="rounded-lg border border-[#D6D9E0] px-2.5 py-1 text-xs text-[#6D717F] transition-colors hover:border-[#F31A1A]/60 hover:text-[#F31A1A]"
+                          className="text-xs font-medium text-[#F31A1A] hover:underline"
                         >
                           Remove
                         </button>
@@ -500,8 +448,9 @@ export default function AccountSignalTrackerClient() {
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
+            </div>
+          )}
+          {storedResult && <StoredSignalsDashboard result={storedResult} />}
         </div>
       )}
     </div>

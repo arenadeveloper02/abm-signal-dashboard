@@ -1,23 +1,25 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T04:01:21.171Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T04:16:01.363Z.
 
 ## Overview
 
-Incremental data/value update to the Stored Signals dashboard. Files changed: (1) components/StoredSignalsDashboard.tsx — tabs renamed/reordered to Overview, Companies, Signals, Trends, Insights ('All Signals' → 'Signals', Insights added); Overview now renders the 11 required stat cards (Companies Tracked, Total Signals with H/M/L chips, High Alerts, C-Suite Changes, Funding, M&A, IPO, News, Product Launches, Partnerships, Creative Hiring) with thousands separators and 0 fallbacks; added the 90-day Signal Feed with count badge and source links, the weekly severity-stacked bar chart (click filters the feed by week), the display-type donut with clickable legend/segments (filters the feed by type), and the Top Industries horizontal bar chart (click filters the Signals table); display types now distinguish C-Suite Join vs C-Suite Exit from Action/Title fields and map unmapped types to News Mention; existing severity/link/exclusion helpers reused unchanged. (2) prisma/schema.prisma — echoed (RefreshEvent model, no column edits) per the database rule. (3) app/not-found.tsx — canonical zero-import template echoed per structure requirements. No theme, layout, library, or unrelated code changes.
+Incremental data-and-values update to the stored-signals dashboard. Files changed: components/StoredSignalsDashboard.tsx (renders the five tabs — Overview, Companies, Signals, Trends, Insights — with the 11 Overview stat cards, 90-day Signal Feed with count badge, weekly severity-stacked trend with click-to-filter, signal-type donut with clickable legend/segments, and top-industries bar chart wired to the Signals tab); components/AccountSignalTrackerClient.tsx (completed the upload/list JSX and wired the stored-signals result into StoredSignalsDashboard — data flow only, no restyle); components/KpiCard.tsx (values now render with thousands separators only — no visual rework); lib/utils.ts (added derivation helpers: NO_SIGNIFICANT_SIGNAL exclusion constant, per-family severity normalization, display-type mapping incl. C-Suite Join/Exit from Action/Title fields, Supporting URLs / whitespace-split source-link extraction, announcement_date→last_seen_at date fallback, formatNumber); lib/types.ts (added NormalizedSeverity and SourceLink types); prisma/schema.prisma (returned unchanged per database rule — no columns edited or removed).
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 45
 
 ## Features
 
-- Five dashboard sections: Overview, Companies, Signals, Trends, Insights
-- 11 Overview stat cards derived from the ABM Signal Read API with severity split chips
-- 90-day Signal Feed with count badge, severity, display types and source links
-- Weekly signal trend stacked by severity with click-to-filter feed
-- Signal type breakdown donut with clickable legend filtering the feed
-- Top industries horizontal bar chart filtering the signals table
-- C-Suite Join vs Exit derivation from Action/Title fields
+- Five dashboard tabs: Overview, Companies, Signals, Trends, Insights
+- 11 Overview stat cards derived from the ABM Signal Read API (Companies Tracked, Total Signals with H/M/L chips, High Alerts, C-Suite Changes, Funding, M&A, IPO, News, Product Launches, Partnerships, Creative Hiring)
+- Signal Feed limited to the last 90 days with count badge, type/severity chips, summaries and multi-source links
+- Weekly severity-stacked bar chart with click-to-filter feed by week
+- Signal type donut with clickable legend/segments filtering the feed
+- Top industries horizontal bar chart filtering the Signals tab
+- NO_SIGNIFICANT_SIGNAL rows excluded from every count, chart, table and feed
+- Per-family severity normalization (funding/partnership/product/csuite rules) with LOW fallback
+- Thousands separators on all card values with 0 rendered for empty counts
 
 ## Tech Stack
 
@@ -155,7 +157,7 @@ Incremental data/value update to the Stored Signals dashboard. Files changed: (1
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T04:01:21.171Z
+- **Updated at:** 2026-08-26T04:16:01.363Z
 - **Request:** Incremental update to the existing dashboard. Everything already built is fine — do NOT restyle, re-theme, refactor, rename, or remove anything. Keep the current visual theme, components, and charting library exactly as they are. This request is about DATA and VALUES ONLY: which tabs exist, which metrics each card shows, and which charts render. Ignore appearance entirely.
 
 === 1. NAVIGATION / TABS ===

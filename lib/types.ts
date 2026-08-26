@@ -198,3 +198,10 @@ export interface StoredSignalsResult {
   unmatched_count?: number
   companies?: StoredCompany[]
 }
+
+export type NormalizedSeverity = 'HIGH' | 'MEDIUM' | 'LOW'
+
+export interface SourceLink {
+  name: string
+  url: string
+}

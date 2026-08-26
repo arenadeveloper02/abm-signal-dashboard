@@ -37,7 +37,7 @@ export default function KpiCard({ icon, label, value, accent, sparkData, pills, 
           </span>
         )}
       </div>
-      <div className="mt-2 text-4xl font-semibold text-white">{value}</div>
+      <div className="mt-2 text-4xl font-semibold text-white">{value.toLocaleString('en-US')}</div>
       <div className="mt-1 text-[11px] font-medium uppercase tracking-wider text-[#8A8F9C]">{label}</div>
       {pills && (
         <div className="mt-2 flex gap-1.5">
@@ -47,7 +47,7 @@ export default function KpiCard({ icon, label, value, accent, sparkData, pills, 
               className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
               style={{ color: p.color, borderColor: `${p.color}55`, backgroundColor: `${p.color}14` }}
             >
-              {p.label} {p.value}
+              {p.label} {p.value.toLocaleString('en-US')}
             </span>
           ))}
         </div>
