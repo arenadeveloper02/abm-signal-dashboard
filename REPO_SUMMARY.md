@@ -1,22 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T09:33:17.678Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T10:27:31.217Z.
 
 ## Overview
 
-ABM Account Signal Tracker: upload a company list (CSV/XLSX) and track funding, C-suite, product and partnership signals with dashboards, trends and insights. This fix restores prisma/schema.prisma to the exact live baseline (RefreshEvent only, no AppSetting) and repairs the truncated/broken JSX in components/StoredSignalsDashboard.tsx that failed next build.
+ABM account signal tracker: upload a company list (CSV/XLSX) or view all stored companies, and explore funding, C-suite, product and partnership signals in a tabbed dashboard.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- CSV/XLSX company list upload and parsing
-- Live signal analysis via ABM workflow APIs
-- Stored signals dashboard with KPI cards, severity charts and feed
-- Companies, Signals, Trends and Insights tabs
-- Refresh event logging via Prisma (RefreshEvent)
-- Arena iframe email gating
+- Landing loads the all-companies stored-signals dashboard automatically
+- Upload a CSV/XLSX company list to scope the same dashboard to those companies
+- Analyze Signals runs against the currently scoped company set
+- Tabbed dashboard with KPI cards, severity, type, industry and trend charts
+- Arena iframe email gating with access-denied page
 
 ## Tech Stack
 
@@ -37,6 +36,7 @@ ABM Account Signal Tracker: upload a company list (CSV/XLSX) and track funding, 
 
 ## Database Models
 
+- `AppSetting`
 - `RefreshEvent`
 
 ## File Inventory
@@ -156,35 +156,48 @@ ABM Account Signal Tracker: upload a company list (CSV/XLSX) and track funding, 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T09:33:17.678Z
-- **Request:** CRITICAL — BUILD FIX, DO THIS FIRST AND ONLY THIS.
+- **Updated at:** 2026-08-26T10:27:31.217Z
+- **Request:** SCOPE LOCK — obey exactly:
+- SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte unless it is in the allowlist below.
+- Do NOT modify prisma/schema.prisma under any circumstance.
+- Do NOT change theme, colors, fonts, layout spacing, or add dark mode.
+- Do NOT refactor, rename, reorder, reformat, or "clean up" any file not in the allowlist.
+- Do NOT add dependencies, env vars, config, or API routes.
+- Do NOT change any file under app/api/ — no changes to endpoints, upstream URLs, API keys/env var handling, or response parsing.
+- Do NOT change the dashboard tabs/charts themselves (StoredSignalsDashboard.tsx internals) beyond passing it different data.
+- Touch ONLY the file(s) in the allowlist.
 
-The Vercel build is failing with a Prisma potential_dataloss error: `prisma db push` wants to DROP the `RefreshEvent` table (3 live rows). Cause: a previous edit wrongly replaced prisma/schema.prisma — it deleted the `RefreshEvent` model and invented an `AppSetting` model that the live database does not have. The app has only ever had the `RefreshEvent` model.
+FILES YOU MAY EDIT (allowlist — nothing else):
+- components/AccountSignalTrackerClient.tsx
+(If the company table, buttons, or upload flow genuinely live in a different file, STOP and report which file before editing — do not silently edit outside this list.)
 
-FIX: Overwrite prisma/schema.prisma so its ENTIRE contents are EXACTLY the following bytes, nothing more, nothing less. Remove the `AppSetting` model completely. Restore `RefreshEvent` exactly as below. Do not add, reorder, rename, or reformat anything:
+THE CHANGES (make exactly these, nothing more):
 
-// **NOTE: dont remove updatedAt in any tables **
-generator client {
-  provider = "prisma-client-js"
-}
+1. LANDING = DASHBOARD FOR ALL COMPANIES, NO TABLE, EVER:
+On initial page load, go straight to the dashboard populated with ALL companies' data. Never show the upload screen or an empty state first (an error fallback if the fetch genuinely fails is fine). This already calls fetch('/api/all-stored-signals', ...) on mount — do NOT change this endpoint or its call shape, only fix the render branching if needed so the dashboard reliably shows first.
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+The COMPANY / LOCATION / ACTION table with Remove buttons must be deleted entirely and must never render, in any state — not on landing, and not after uploading a file either. There is no scenario where this table should appear.
 
-model RefreshEvent {
-  id        String   @id @default(cuid())
-  emailId   String
-  runId     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-}
+2. UPLOAD DIFFERENT FILE — SAME UI, DIFFERENT DATA SCOPE:
+Clicking "Upload Different File" opens the existing drag-and-drop upload screen. Once the user uploads a valid company list, the app must show the SAME dashboard UI (same layout, same tabs, same charts, same components as the all-companies view) but scoped to ONLY the companies from that uploaded file. Do not show the company table for this case either — go straight from "file uploaded" to "dashboard filtered to those companies."
 
-RULES:
-- After this fix, prisma/schema.prisma must match the block above byte-for-byte so that `prisma db push` is a no-op against the existing database and reports NO data loss.
-- If any code currently imports or references a Prisma `AppSetting` model or an `appSetting` client accessor, that code was added in the same bad change — remove or revert those references so the build compiles against the restored schema. Do NOT keep AppSetting alive by re-adding it to the schema.
-- Do NOT touch anything else: leave app/api/all-stored-signals/route.ts (with its baked-in DEFAULT key), the components, the theme, and all other files exactly as they are on main.
-- Do NOT add features, refactors, or reformatting.
+3. BUTTONS:
+Keep "Upload Different File", "Analyze Signals", and "Load Stored Signals" together in the action row, exactly as positioned now. Do not remove, rename, or reposition any button.
 
-After implementing, print the full final contents of prisma/schema.prisma and list every other file you had to touch (there should be none, unless a stray AppSetting reference forced a revert) and why.
+4. ANALYZE SIGNALS — SCOPE FOLLOWS CURRENT CONTEXT:
+"Analyze Signals" always analyzes whichever companies are currently in scope:
+   - If the user has not uploaded a file (still on the default all-companies view), Analyze Signals analyzes ALL companies.
+   - If the user has uploaded a file via "Upload Different File," Analyze Signals analyzes only the companies from that uploaded file.
+There is no manual per-company checkbox/selection UI — "selected companies" means whichever set (all, or uploaded) is currently active. Do NOT change how the analyze API/fetch call itself is invoked, its endpoint, or what it returns — only change which companies are passed into it based on current scope.
+
+DO NOT CHANGE:
+- Any file under app/api/ or lib/ — API endpoints, fetch logic, response parsing, or upstream URLs/keys.
+- The dashboard tabs, charts, metrics, or their internal rendering logic (StoredSignalsDashboard.tsx) — only the data/company scope passed into it should differ.
+- The visual theme, colors, spacing, or component styling.
+
+AFTER IMPLEMENTING:
+- List every file you modified. If anything outside the allowlist appears, revert it.
+- Confirm prisma/schema.prisma is byte-for-byte unchanged.
+- Confirm no file under app/api/ was touched.
+- Confirm: (a) app opens straight to the all-companies dashboard with no table, (b) uploading a file shows the same dashboard UI scoped to just those companies with no table, (c) Analyze Signals uses all companies by default or the uploaded set if a file was uploaded.
+- Print the final contents of each file you changed.
