@@ -1,21 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T06:35:05.800Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T07:07:46.293Z.
 
 ## Overview
 
-ABM Account Signal Tracker. Root cause of the dark 'Stored Signals Dashboard' panel: hardcoded dark-theme Tailwind arbitrary-value classes and inline styles inside components/StoredSignalsDashboard.tsx (bg-[#15161C]/bg-[#1B1D24] card backgrounds, border-[#22242C]/border-[#2E313A] borders, text-white/text-[#D3D6DE] text, a dark recharts tooltipStyle object with backgroundColor #22242C) plus the shared components it renders — components/KpiCard.tsx (bg-[#1B1D24], text-white, #2E313A border) and components/TabBar.tsx (bg-[#15161C] nav). There is no dark: variant or theme provider; the dark look was hardcoded. Fix: replaced those dark classes/inline styles with the same light styling used on the rest of the page (white surfaces, #E2E3E5 borders, #2C2D33/#575A66/#8A8D99 text, white chart background and tooltip) while keeping the exact same data logic, tabs, metrics, chart types and chart color palette. prisma/schema.prisma is returned with RefreshEvent intact including updatedAt (restored per live-database baseline; never dropped).
+ABM account signal tracker: upload a company list or auto-load stored signals and explore funding, C-suite, product and partnership activity in a tabbed dashboard.
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 45
+**File count:** 46
 
 ## Features
 
-- Light-themed Stored Signals Dashboard panel matching the rest of the page
-- Overview / Companies / Signals / Trends / Insights tabs preserved
-- Light-tinted colored-border KPI stat cards with original accent palette
-- Charts on white background with original series colors
-- CSV/XLSX company upload and stored-signal analysis (unchanged)
+- Automatic initial load of stored company/signal data
+- CSV/XLSX company list upload fallback
+- Stored Signals Dashboard with Overview, Companies, Signals, Trends and Insights tabs
+- Severity and signal-type charts with click-to-filter
+- Refresh event logging via Prisma
 
 ## Tech Stack
 
@@ -52,6 +52,7 @@ ABM Account Signal Tracker. Root cause of the dark 'Stored Signals Dashboard' pa
 
 ### API routes
 
+- `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
@@ -109,6 +110,7 @@ ABM Account Signal Tracker. Root cause of the dark 'Stored Signals Dashboard' pa
 - `README.md`
 - `REPO_SUMMARY.md`
 - `app/access-denied/page.tsx`
+- `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
@@ -153,30 +155,53 @@ ABM Account Signal Tracker. Root cause of the dark 'Stored Signals Dashboard' pa
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T06:35:05.800Z
+- **Updated at:** 2026-08-26T07:07:46.293Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
+
+STANDING RULE — THEME LOCK: The current light theme (white/light-gray backgrounds, dark text, light-tinted colored-border stat cards, charts on white background) is correct and must not change. Do not introduce dark mode anywhere, on this page or elsewhere, as part of these changes.
 
 Changes to implement:
 
-STANDING RULE — THEME LOCK (READ FIRST):
-The "Stored Signals Dashboard" panel (containing the Overview / Companies / Signals / Trends / Insights tabs, stat cards, feed, and charts) is CURRENTLY RENDERING WITH A DARK/BLACK BACKGROUND AND WHITE TEXT. THIS IS WRONG AND MUST BE FIXED, NOT PRESERVED.
+1. === INITIAL PAGE LOAD ===
 
-The rest of the page (header, company table, buttons) is already correct: white/light-gray background, dark text, light borders. The "Stored Signals Dashboard" panel must match that SAME light styling — white/light card background, dark text, light gray borders, the original light-tinted colored-border stat cards (blue, teal, red, orange, purple, pink, green, amber), and charts on a white background with the original palette.
+Currently, on first load, the page shows an "Upload your company list" drag-and-drop screen when no data is present.
 
-Before making any change, first FIND AND REPORT the source of the dark styling on this panel — e.g. a `dark:` Tailwind variant being applied, a hardcoded dark className, inline dark styles, a dark-mode theme provider/context, or a separate component/stylesheet for this panel that differs from the rest of the page. Explain what you found, then fix it.
+Change this: on initial page load, instead of showing the upload screen, automatically call the following API to fetch existing stored company/signal data:
 
-Explicitly remove any dark-theme classes/styles applied to this panel and replace them with the same light styling used elsewhere on this page. Do not apply dark mode to this panel under any circumstance, even conditionally or as a default.
+curl -  curl --location 'https://agent.thearena.ai/api/workflows/8983ed27-5c88-4505-9847-ad4ed0deaf65/execute' \
+--header 'X-API-Key: sk-sim-u3_2d6AaWsa4zd2yoaaw9IyWfpHVTi_F' \
+--header 'Content-Type: application/json' \
+--header 'Cookie: AWSALB=/AcIW9qrLA+5V38qQIL9WNX/o13EoptpTvsqLUqr1ee1jNw7UGDu8VYwXwj+tGLGEKbE6wAipubttw7HY8ALGqUa1UZesEaph1d5zV7xSr8PZfJ6qL1OcLNXnP4x; AWSALBCORS=/AcIW9qrLA+5V38qQIL9WNX/o13EoptpTvsqLUqr1ee1jNw7UGDu8VYwXwj+tGLGEKbE6wAipubttw7HY8ALGqUa1UZesEaph1d5zV7xSr8PZfJ6qL1OcLNXnP4x' \
+--data '{"limit":42,"offset":42,"includeSignals":true}'
 
-Do not change colors, fonts, border-radius, spacing, chart library, or chart color palette beyond fixing this dark/light mismatch. Do not touch any other part of the page that is already light-themed and working correctly.
+Notes on this call:
+- Use offset: 0 on initial load so it returns the full/first set of existing companies, not a skipped page. Do not copy any specific offset value verbatim — start from 0.
+- Choose a reasonable default "limit" (e.g. matching whatever the app currently uses elsewhere for a "load all" call, or a high enough value to get the full existing dataset in one call). If the API is paginated and there's already pagination-handling logic elsewhere in the codebase, reuse that pattern rather than inventing a new one.
+- Store the API key as an environment variable if it isn't already; do not commit it in source. Flag if a suitable env var doesn't already exist so it can be added to the deployment config.
+- Cookies (AWSALB/AWSALBCORS) shown in the example curl are session-specific artifacts from testing and should NOT be copied into the code — the request should rely only on the X-API-Key header for auth.
 
-This request is about DATA and VALUES ONLY beyond the theme fix above: which tabs exist, which metrics each card shows, and which charts render. Ignore appearance entirely except for the dark→light fix described above.
+The response from this call should be used to populate the dashboard exactly as "Load Stored Signals" currently does — i.e. this replaces the need for the user to click that button on first load; reuse that existing loading/rendering logic rather than writing new logic.
 
-Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+While this initial call is in flight, show the existing loading state (or a minimal equivalent) rather than the upload screen.
 
+If the API call fails or returns no companies, fall back to showing the current "Upload your company list" screen (so the upload flow still works as a fallback).
+
+2. === "UPLOAD DIFFERENT FILE" BUTTON ===
+
+Keep the "Upload Different File" button's current behavior unchanged: clicking it should show the same "Upload your company list" drag-and-drop screen that currently appears on first load (see image 2 in the reference screenshots). Do not change this screen's design, copy, or logic — only ensure it's reachable via this button instead of being the default first-load view.
+
+3. === REMOVE COMPANY TABLE FROM DEFAULT VIEW ===
+
+Currently, above the "Stored Signals Dashboard" panel, there is a company table (columns: Company, Location, Action) listing the loaded companies with "Remove" links.
+
+Remove this table from the default/initial view. After the automatic API call in point 1 succeeds, the page should go straight to showing the "Stored Signals Dashboard" panel (Overview/Companies/Signals/Trends/Insights tabs etc.) — do not show the standalone company table above it.
+
+Do not delete the underlying company-list data/state itself if it's used elsewhere (e.g. by the "Companies" tab inside the dashboard, or by "Remove" functionality) — only remove this specific table from being rendered on the default view. If "Remove company" functionality currently only exists in this table and nowhere else, flag this instead of silently dropping that functionality, so we can decide where it should live (e.g. inside the Companies tab).
 
 Only touch the files/functions directly related to the points above.
 Do not change variable names, code style, or structure outside the scope of these changes.
 Do not add extra features, optimizations, or refactors that weren't requested.
-Do not introduce dark mode anywhere else in the codebase.
+Do not introduce dark mode anywhere in the codebase.
+Do not hardcode the API key or session cookies into any source file — use environment variables and flag if one needs to be added.
 If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
-After implementing, list exactly which files and lines were changed, and why — including specifically what caused the dark theme on the Stored Signals Dashboard panel and how it was fixed.
+After implementing, list exactly which files and lines were changed, and why — including where the API key env var was added/expected, and where "Remove company" functionality now lives if it was affected by removing the table.

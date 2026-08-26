@@ -1,9 +1,8 @@
 "use client"
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { AnalyzeResult, ParsedCompany, StoredSignal, StoredSignalsResult } from '@/lib/types'
-import EmptyState from '@/components/EmptyState'
 import StoredSignalsDashboard from '@/components/StoredSignalsDashboard'
 
 function normalizeKey(key: string): string {
@@ -29,6 +28,39 @@ type AnalyzePayload = Partial<AnalyzeResult> & { error?: string; missing?: strin
 
 type StoredPayload = Partial<StoredSignalsResult> & { error?: string; missing?: string[] }
 
+function normalizeStoredPayload(json: StoredPayload, requestedCount: number): StoredSignalsResult {
+  const signals = Array.isArray(json.signals) ? (json.signals as StoredSignal[]) : []
+  return {
+    total: typeof json.total === 'number' ? json.total : signals.length,
+    returned: typeof json.returned === 'number' ? json.returned : signals.length,
+    limit: typeof json.limit === 'number' ? json.limit : 1000,
+    offset: typeof json.offset === 'number' ? json.offset : 0,
+    requested_count:
+      typeof json.requested_count === 'number' ? json.requested_count : requestedCount,
+    matched_count:
+      typeof json.matched_count === 'number'
+        ? json.matched_count
+        : Array.isArray(json.companies)
+          ? json.companies.length
+          : 0,
+    unmatched_count:
+      typeof json.unmatched_count === 'number'
+        ? json.unmatched_count
+        : Array.isArray(json.unmatched_inputs)
+          ? json.unmatched_inputs.length
+          : 0,
+    counts_by_family: {
+      funding: json.counts_by_family?.funding ?? 0,
+      csuite: json.counts_by_family?.csuite ?? 0,
+      product: json.counts_by_family?.product ?? 0,
+      partnership: json.counts_by_family?.partnership ?? 0,
+    },
+    unmatched_inputs: Array.isArray(json.unmatched_inputs) ? json.unmatched_inputs : [],
+    companies: Array.isArray(json.companies) ? json.companies : [],
+    signals,
+  }
+}
+
 export default function AccountSignalTrackerClient() {
   const [companies, setCompanies] = useState<ParsedCompany[]>([])
   const [fileName, setFileName] = useState('')
@@ -41,7 +73,43 @@ export default function AccountSignalTrackerClient() {
   const [fetchingStored, setFetchingStored] = useState(false)
   const [storedError, setStoredError] = useState<string | null>(null)
   const [storedResult, setStoredResult] = useState<StoredSignalsResult | null>(null)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [showUpload, setShowUpload] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    let active = true
+    const loadInitial = async () => {
+      try {
+        const res = await fetch('/api/all-stored-signals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit: 1000, offset: 0, includeSignals: true }),
+        })
+        let json: StoredPayload = {}
+        try {
+          json = (await res.json()) as StoredPayload
+        } catch {
+          json = {}
+        }
+        if (!active) return
+        if (!res.ok || json.error) return
+        if (!Array.isArray(json.signals) || typeof json.total !== 'number') return
+        const hasCompanies = Array.isArray(json.companies) && json.companies.length > 0
+        if (json.signals.length === 0 && !hasCompanies) return
+        const fallbackCount = Array.isArray(json.companies) ? json.companies.length : 0
+        setStoredResult(normalizeStoredPayload(json, fallbackCount))
+      } catch {
+        // Fall back to the upload screen when the initial fetch fails
+      } finally {
+        if (active) setInitialLoading(false)
+      }
+    }
+    void loadInitial()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const parseFile = async (file: File) => {
     const ext = file.name.toLowerCase().split('.').pop() ?? ''
@@ -103,6 +171,7 @@ export default function AccountSignalTrackerClient() {
       setAnalyzeError(null)
       setStoredResult(null)
       setStoredError(null)
+      setShowUpload(false)
     } catch {
       setError('Could not parse the uploaded file. Please check the file and try again.')
     }
@@ -117,6 +186,11 @@ export default function AccountSignalTrackerClient() {
 
   const handleRemove = (id: string) => {
     setCompanies((prev) => prev.filter((c) => c.id !== id))
+  }
+
+  const handleUploadDifferent = () => {
+    setError(null)
+    setShowUpload(true)
   }
 
   const handleAnalyze = async () => {
@@ -222,35 +296,7 @@ export default function AccountSignalTrackerClient() {
         setStoredError('Unexpected response from the signal read API')
         return
       }
-      setStoredResult({
-        total: json.total,
-        returned: typeof json.returned === 'number' ? json.returned : json.signals.length,
-        limit: typeof json.limit === 'number' ? json.limit : 1000,
-        offset: typeof json.offset === 'number' ? json.offset : 0,
-        requested_count:
-          typeof json.requested_count === 'number' ? json.requested_count : companies.length,
-        matched_count:
-          typeof json.matched_count === 'number'
-            ? json.matched_count
-            : Array.isArray(json.companies)
-              ? json.companies.length
-              : 0,
-        unmatched_count:
-          typeof json.unmatched_count === 'number'
-            ? json.unmatched_count
-            : Array.isArray(json.unmatched_inputs)
-              ? json.unmatched_inputs.length
-              : 0,
-        counts_by_family: {
-          funding: json.counts_by_family?.funding ?? 0,
-          csuite: json.counts_by_family?.csuite ?? 0,
-          product: json.counts_by_family?.product ?? 0,
-          partnership: json.counts_by_family?.partnership ?? 0,
-        },
-        unmatched_inputs: Array.isArray(json.unmatched_inputs) ? json.unmatched_inputs : [],
-        companies: Array.isArray(json.companies) ? json.companies : [],
-        signals: json.signals as StoredSignal[],
-      })
+      setStoredResult(normalizeStoredPayload(json, companies.length))
     } catch {
       setStoredError('Could not reach the signal read API. Check your connection and try again.')
     } finally {
@@ -271,6 +317,45 @@ export default function AccountSignalTrackerClient() {
   const subtitle = analysisResult
     ? `${analysisResult.total_signals} signals found \u00b7 Funding ${analysisResult.signals_by_family.funding} \u00b7 C-Suite ${analysisResult.signals_by_family.csuite} \u00b7 Product ${analysisResult.signals_by_family.product} \u00b7 Partnership ${analysisResult.signals_by_family.partnership}`
     : 'No analysis loaded yet'
+
+  const uploadZone = (
+    <div className="mt-10 flex flex-col items-center justify-center text-center">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault()
+          setIsDragging(true)
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setIsDragging(false)
+          handleFiles(e.dataTransfer.files)
+        }}
+        className={`w-full max-w-xl rounded-2xl border-2 border-dashed px-6 py-14 transition-colors ${
+          isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#E2E3E5] bg-white'
+        }`}
+      >
+        <p className="text-3xl" aria-hidden="true">📄</p>
+        <h2 className="mt-3 text-lg font-semibold text-[#2C2D33]">Upload your company list</h2>
+        <p className="mx-auto mt-1 max-w-md text-sm text-[#6D717F]">
+          Drag and drop a CSV or XLSX file here, or browse to select one. Include a Company column
+          plus optional Website, Industry, City, State and Country columns.
+        </p>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="mt-5 rounded-xl bg-[#1A73E8] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1765CC]"
+        >
+          Browse Files
+        </button>
+      </div>
+      {error && (
+        <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -323,135 +408,117 @@ export default function AccountSignalTrackerClient() {
         }}
       />
 
-      {companies.length === 0 && (
-        <div className="mt-10 flex flex-col items-center justify-center text-center">
+      {initialLoading ? (
+        <div className="mt-10 flex flex-col items-center justify-center rounded-2xl border border-[#E2E3E5] bg-white px-6 py-16 text-center">
           <div
-            role="button"
-            tabIndex={0}
-            aria-label="Upload a CSV or XLSX company list"
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                fileInputRef.current?.click()
-              }
-            }}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setIsDragging(true)
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setIsDragging(false)
-              handleFiles(e.dataTransfer.files)
-            }}
-            className={`w-full max-w-xl cursor-pointer rounded-2xl border-2 border-dashed px-8 py-14 transition-colors ${
-              isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#D0D3DA]'
-            }`}
-          >
-            <p className="text-3xl" aria-hidden="true">📄</p>
-            <h2 className="mt-3 text-lg font-semibold">Upload your company list</h2>
-            <p className="mt-1 text-sm">Drag and drop a CSV or XLSX file here, or click to browse.</p>
-            <p className="mt-2 text-xs">A column named Company, Company_Name or Company Name is required.</p>
-          </div>
-          {error && (
-            <p className="mt-4 text-sm text-[#F31A1A]" role="alert">
-              {error}
-            </p>
-          )}
+            className="h-8 w-8 animate-spin rounded-full border-2 border-[#1A73E8] border-t-transparent"
+            aria-hidden="true"
+          />
+          <p className="mt-4 text-sm font-medium text-[#2C2D33]">Loading stored signals…</p>
+          <p className="mt-1 text-xs text-[#6D717F]">Fetching existing company signal data</p>
         </div>
-      )}
-
-      {companies.length > 0 && (
-        <div className="mt-6 space-y-4">
-          {error && (
-            <p className="text-sm text-[#F31A1A]" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">{fileName}</p>
-              <p className="text-xs">
-                {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} loaded
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded border px-4 py-2 text-sm font-medium"
-              >
-                Upload Different File
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleAnalyze()}
-                disabled={analyzing}
-                className="rounded border px-4 py-2 text-sm font-medium disabled:opacity-50"
-              >
-                {analyzing ? 'Analyzing…' : 'Analyze Signals'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleFetchStored()}
-                disabled={analyzing || fetchingStored}
-                className="rounded bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {fetchingStored ? 'Loading…' : 'Load Stored Signals'}
-              </button>
-            </div>
+      ) : showUpload ? (
+        uploadZone
+      ) : companies.length > 0 ? (
+        <>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleAnalyze()}
+              disabled={analyzing}
+              className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1765CC] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {analyzing ? 'Analyzing…' : 'Analyze Companies'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleFetchStored()}
+              disabled={fetchingStored || analyzing}
+              className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:bg-[#F7F8F9] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {fetchingStored ? 'Loading…' : 'Load Stored Signals'}
+            </button>
+            <button
+              type="button"
+              onClick={handleUploadDifferent}
+              className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:bg-[#F7F8F9]"
+            >
+              Upload Different File
+            </button>
           </div>
           {analyzeError && (
-            <p className="text-sm text-[#F31A1A]" role="alert">
+            <p className="mt-3 text-sm text-[#F31A1A]" role="alert">
               {analyzeError}
             </p>
           )}
           {storedError && (
-            <p className="text-sm text-[#F31A1A]" role="alert">
+            <p className="mt-3 text-sm text-[#F31A1A]" role="alert">
               {storedError}
             </p>
           )}
-          {visibleCompanies.length === 0 ? (
-            <EmptyState
-              icon="🔍"
-              title="No companies match your search"
-              message="Try a different search term or clear the search box."
-            />
-          ) : (
-            <div className="overflow-hidden rounded-xl border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="px-4 py-2 font-medium">Company</th>
-                    <th className="px-4 py-2 font-medium">Location</th>
-                    <th className="px-4 py-2 text-right font-medium">Action</th>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#E2E3E5] bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#E2E3E5] bg-[#F7F8F9] text-left text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]">
+                  <th className="px-4 py-3">Company</th>
+                  <th className="px-4 py-3">Location</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleCompanies.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-10 text-center text-sm text-[#6D717F]">
+                      No companies match your search.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {visibleCompanies.map((c) => (
-                    <tr key={c.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-2 font-medium">{c.name}</td>
-                      <td className="px-4 py-2">{c.location || '—'}</td>
-                      <td className="px-4 py-2 text-right">
+                ) : (
+                  visibleCompanies.map((c) => (
+                    <tr key={c.id} className="border-b border-[#F1F2F4] last:border-b-0">
+                      <td className="px-4 py-3 font-medium text-[#2C2D33]">{c.name}</td>
+                      <td className="px-4 py-3 text-[#6D717F]">{c.location !== '' ? c.location : '—'}</td>
+                      <td className="px-4 py-3 text-right">
                         <button
                           type="button"
                           onClick={() => handleRemove(c.id)}
-                          aria-label={`Remove ${c.name}`}
-                          className="text-xs font-medium text-[#F31A1A] hover:underline"
+                          className="text-sm font-medium text-[#F31A1A] hover:underline"
                         >
                           Remove
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-[#6D717F]">
+            {fileName !== '' ? `${fileName} · ` : ''}
+            {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} loaded
+          </p>
+          {storedResult && (
+            <div className="mt-6">
+              <StoredSignalsDashboard result={storedResult} />
             </div>
           )}
-          {storedResult && <StoredSignalsDashboard result={storedResult} />}
-        </div>
+        </>
+      ) : storedResult ? (
+        <>
+          <div className="mt-6 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={handleUploadDifferent}
+              className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:bg-[#F7F8F9]"
+            >
+              Upload Different File
+            </button>
+          </div>
+          <div className="mt-4">
+            <StoredSignalsDashboard result={storedResult} />
+          </div>
+        </>
+      ) : (
+        uploadZone
       )}
     </div>
   )
