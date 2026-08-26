@@ -1,21 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T07:07:46.293Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T07:40:51.889Z.
 
 ## Overview
 
-ABM account signal tracker: upload a company list or auto-load stored signals and explore funding, C-suite, product and partnership activity in a tabbed dashboard.
+Fixed build errors: components/AccountSignalTrackerClient.tsx had a literal \n escape inside the subtitle ternary (TS1127/TS1005) and components/StoredSignalsDashboard.tsx had unclosed JSX (TS17008). Both files were completed with valid JSX preserving the requested behavior: auto-load stored signals on first load via /api/all-stored-signals (API key from ABM_ALL_SIGNALS_API_KEY/ABM_API_KEY env vars, no cookies), loading state while in flight, upload screen as fallback and via the 'Upload Different File' button, no company table on the default auto-loaded view (Remove company lives in the post-upload table only). prisma/schema.prisma is echoed unchanged.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Automatic initial load of stored company/signal data
-- CSV/XLSX company list upload fallback
-- Stored Signals Dashboard with Overview, Companies, Signals, Trends and Insights tabs
-- Severity and signal-type charts with click-to-filter
-- Refresh event logging via Prisma
+- Auto-load stored signals on initial page load (offset 0) via /api/all-stored-signals proxy using X-API-Key from env only
+- Loading state while initial fetch is in flight; upload screen fallback on failure/empty data
+- Upload Different File button re-opens the drag-and-drop upload screen
+- Default view goes straight to the Stored Signals Dashboard (Overview/Companies/Signals/Trends/Insights) with no standalone company table
+- Remove company functionality preserved in the post-upload company table
+- Light theme preserved throughout (white surfaces, light borders, dark text)
 
 ## Tech Stack
 
@@ -155,7 +156,7 @@ ABM account signal tracker: upload a company list or auto-load stored signals an
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T07:07:46.293Z
+- **Updated at:** 2026-08-26T07:40:51.889Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 STANDING RULE — THEME LOCK: The current light theme (white/light-gray backgrounds, dark text, light-tinted colored-border stat cards, charts on white background) is correct and must not change. Do not introduce dark mode anywhere, on this page or elsewhere, as part of these changes.
