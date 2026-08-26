@@ -1,22 +1,20 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T08:17:26.550Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T08:56:04.310Z.
 
 ## Overview
 
-ABM Signal Dashboard: upload a company list or auto-load all stored ABM signals across funding, C-suite, product and partnership activity, with severity KPIs, trends and insights. Fixed the truncated/corrupted components/StoredSignalsDashboard.tsx (unclosed JSX / invalid character) by restoring the complete component, and repointed lib/actions.ts logRefresh to the existing AppSetting model (the deployed schema has no RefreshEvent model). prisma/schema.prisma is echoed verbatim and untouched. The requested API-key default in app/api/all-stored-signals/route.ts (getApiKey) was already present and left as-is.
+Fixed the Recent Signals (last 90 days) card in components/StoredSignalsDashboard.tsx so the signal list scrolls internally (max-h-[480px] + overflow-y-auto on the <ul> list container inside the card) while the card header (title, filter chips, count badge) stays fixed at the top of the card. Only the feed list container inside that one card gained the scroll classes; card padding/border/colors and all other sections (stat cards, Weekly Signal Trend, Signal Type Breakdown, Top Industries, tabs) are visually unchanged. prisma/schema.prisma was intentionally NOT returned: the baseline schema file was not provided in this edit context and the standing rule forbids modifying or regenerating it from memory — omitting it leaves the deployed schema byte-for-byte unchanged. Changed file: components/StoredSignalsDashboard.tsx — the Recent Signals section's list element now has className "mt-3 max-h-[480px] space-y-3 overflow-y-auto pr-1" (previously no max-height/overflow), and the header row is outside the scroll container so it never scrolls away.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Auto-loads all stored signals on first visit via /api/all-stored-signals
-- CSV/XLSX company list upload with column normalization
-- Severity-normalized KPI cards with sparklines and feed filtering
-- Weekly severity and family trend charts, type donut, industry breakdown
-- Companies, Signals, Trends and Insights tabs
-- Arena email gate with access-denied page and iframe-safe headers
+- Recent Signals (last 90 days) card now scrolls internally instead of stretching the page
+- Fixed card header (title, count badge, active filter chips) stays visible while the feed scrolls
+- Light theme preserved exactly — no styling changes beyond the internal scroll container
+- All other overview charts, stat cards, tabs and page layout untouched
 
 ## Tech Stack
 
@@ -156,23 +154,28 @@ ABM Signal Dashboard: upload a company list or auto-load all stored ABM signals 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T08:17:26.550Z
-- **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave that file untouched.
+- **Updated at:** 2026-08-26T08:56:04.310Z
+- **Request:** STANDING RULE: Never modify prisma/schema.prisma.
 
-STANDING RULE — THEME LOCK: The current light theme is correct. Do not change theme, colors, layout, or introduce dark mode anywhere.
+STANDING RULE — THEME LOCK: Keep the current light theme exactly as-is (white/light-gray backgrounds, dark text, light-tinted colored-border stat cards). Do not introduce dark mode or change any other styling.
 
-Single change to implement:
+Changes to implement:
 
-In app/api/all-stored-signals/route.ts, the API key is currently resolved only from environment variables (ABM_ALL_SIGNALS_API_KEY, falling back to ABM_API_KEY). Those env vars are not set on the deployment, so the route returns 500 "ABM all-signals API not configured" and the client silently falls back to the upload screen.
+1. === RECENT SIGNALS (LAST 90 DAYS) CARD — FIX SCROLL BEHAVIOR ===
 
-Fix this exactly the way app/api/analyze/route.ts already does it: add a module-level default key constant and have getApiKey() fall back to it when neither env var is set. Follow the existing DEFAULT_ABM_API_KEY pattern in the analyze route — same naming style, same precedence (dedicated env var first, then shared env var, then the baked-in default).
+In the Overview tab, the "Recent Signals (last 90 days)" card currently has no internal scroll — when the list of signals is long, the whole page scrolls to show them, instead of the list scrolling within the card's own boundary.
 
-The default key value is: sk-sim-u3_2d6AaWsa4zd2yoaaw9IyWfpHVTi_F
+Fix this so that:
+- The card itself has a fixed/max height (matching its current visual size — do not resize the card or change its width/padding/border/header styling).
+- The signal list INSIDE the card becomes independently scrollable (vertical scroll, e.g. `overflow-y-auto` with a `max-height` on the list container) once it exceeds the card's visible area.
+- The card's header (title, count badge, "last 90 days" note) stays fixed/visible at the top of the card and does not scroll away.
+- The rest of the page (stat cards, other charts, page layout) is unaffected and does not need to scroll to see the whole feed — scrolling only happens inside this one card.
 
-Requirements:
-- Env vars must still take precedence over the baked-in default, so the key can be overridden in Vercel later without a code change.
-- Do not remove the "not configured" error branch; it should now only trigger if the default constant is somehow empty.
-- Keep .env.example documenting both env vars as-is.
-- Change nothing else: no other route, component, or file; no refactors, no renames, no reformatting.
+Only touch the specific component/section rendering this "Recent Signals" card and its list — do not change the stat cards, other charts (Weekly Signal Trend, Signal Type Breakdown, Top Industries), tabs, or any other part of the page.
 
-After implementing, confirm which file and function changed.
+Do not change the visual styling of the card (colors, borders, spacing, fonts) beyond adding the internal scroll container.
+Do not change variable names, code style, or structure outside the scope of this change.
+Do not add extra features, optimizations, or refactors that weren't requested.
+Do not introduce dark mode anywhere in the codebase.
+If this requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
+After implementing, list exactly which files and lines were changed, and why.
