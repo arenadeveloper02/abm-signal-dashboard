@@ -7,12 +7,8 @@ export async function logRefresh(
   runId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const key = `last-refresh:${emailId}`
-    const value = JSON.stringify({ runId, at: new Date().toISOString() })
-    await prisma.appSetting.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value },
+    await prisma.refreshEvent.create({
+      data: { emailId, runId },
     })
     return { success: true }
   } catch {

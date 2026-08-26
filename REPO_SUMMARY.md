@@ -1,20 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T08:56:04.310Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T09:33:17.678Z.
 
 ## Overview
 
-Fixed the Recent Signals (last 90 days) card in components/StoredSignalsDashboard.tsx so the signal list scrolls internally (max-h-[480px] + overflow-y-auto on the <ul> list container inside the card) while the card header (title, filter chips, count badge) stays fixed at the top of the card. Only the feed list container inside that one card gained the scroll classes; card padding/border/colors and all other sections (stat cards, Weekly Signal Trend, Signal Type Breakdown, Top Industries, tabs) are visually unchanged. prisma/schema.prisma was intentionally NOT returned: the baseline schema file was not provided in this edit context and the standing rule forbids modifying or regenerating it from memory — omitting it leaves the deployed schema byte-for-byte unchanged. Changed file: components/StoredSignalsDashboard.tsx — the Recent Signals section's list element now has className "mt-3 max-h-[480px] space-y-3 overflow-y-auto pr-1" (previously no max-height/overflow), and the header row is outside the scroll container so it never scrolls away.
+ABM Account Signal Tracker: upload a company list (CSV/XLSX) and track funding, C-suite, product and partnership signals with dashboards, trends and insights. This fix restores prisma/schema.prisma to the exact live baseline (RefreshEvent only, no AppSetting) and repairs the truncated/broken JSX in components/StoredSignalsDashboard.tsx that failed next build.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Recent Signals (last 90 days) card now scrolls internally instead of stretching the page
-- Fixed card header (title, count badge, active filter chips) stays visible while the feed scrolls
-- Light theme preserved exactly — no styling changes beyond the internal scroll container
-- All other overview charts, stat cards, tabs and page layout untouched
+- CSV/XLSX company list upload and parsing
+- Live signal analysis via ABM workflow APIs
+- Stored signals dashboard with KPI cards, severity charts and feed
+- Companies, Signals, Trends and Insights tabs
+- Refresh event logging via Prisma (RefreshEvent)
+- Arena iframe email gating
 
 ## Tech Stack
 
@@ -35,7 +37,7 @@ Fixed the Recent Signals (last 90 days) card in components/StoredSignalsDashboar
 
 ## Database Models
 
-- `AppSetting`
+- `RefreshEvent`
 
 ## File Inventory
 
@@ -154,28 +156,35 @@ Fixed the Recent Signals (last 90 days) card in components/StoredSignalsDashboar
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T08:56:04.310Z
-- **Request:** STANDING RULE: Never modify prisma/schema.prisma.
+- **Updated at:** 2026-08-26T09:33:17.678Z
+- **Request:** CRITICAL — BUILD FIX, DO THIS FIRST AND ONLY THIS.
 
-STANDING RULE — THEME LOCK: Keep the current light theme exactly as-is (white/light-gray backgrounds, dark text, light-tinted colored-border stat cards). Do not introduce dark mode or change any other styling.
+The Vercel build is failing with a Prisma potential_dataloss error: `prisma db push` wants to DROP the `RefreshEvent` table (3 live rows). Cause: a previous edit wrongly replaced prisma/schema.prisma — it deleted the `RefreshEvent` model and invented an `AppSetting` model that the live database does not have. The app has only ever had the `RefreshEvent` model.
 
-Changes to implement:
+FIX: Overwrite prisma/schema.prisma so its ENTIRE contents are EXACTLY the following bytes, nothing more, nothing less. Remove the `AppSetting` model completely. Restore `RefreshEvent` exactly as below. Do not add, reorder, rename, or reformat anything:
 
-1. === RECENT SIGNALS (LAST 90 DAYS) CARD — FIX SCROLL BEHAVIOR ===
+// **NOTE: dont remove updatedAt in any tables **
+generator client {
+  provider = "prisma-client-js"
+}
 
-In the Overview tab, the "Recent Signals (last 90 days)" card currently has no internal scroll — when the list of signals is long, the whole page scrolls to show them, instead of the list scrolling within the card's own boundary.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
-Fix this so that:
-- The card itself has a fixed/max height (matching its current visual size — do not resize the card or change its width/padding/border/header styling).
-- The signal list INSIDE the card becomes independently scrollable (vertical scroll, e.g. `overflow-y-auto` with a `max-height` on the list container) once it exceeds the card's visible area.
-- The card's header (title, count badge, "last 90 days" note) stays fixed/visible at the top of the card and does not scroll away.
-- The rest of the page (stat cards, other charts, page layout) is unaffected and does not need to scroll to see the whole feed — scrolling only happens inside this one card.
+model RefreshEvent {
+  id        String   @id @default(cuid())
+  emailId   String
+  runId     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
 
-Only touch the specific component/section rendering this "Recent Signals" card and its list — do not change the stat cards, other charts (Weekly Signal Trend, Signal Type Breakdown, Top Industries), tabs, or any other part of the page.
+RULES:
+- After this fix, prisma/schema.prisma must match the block above byte-for-byte so that `prisma db push` is a no-op against the existing database and reports NO data loss.
+- If any code currently imports or references a Prisma `AppSetting` model or an `appSetting` client accessor, that code was added in the same bad change — remove or revert those references so the build compiles against the restored schema. Do NOT keep AppSetting alive by re-adding it to the schema.
+- Do NOT touch anything else: leave app/api/all-stored-signals/route.ts (with its baked-in DEFAULT key), the components, the theme, and all other files exactly as they are on main.
+- Do NOT add features, refactors, or reformatting.
 
-Do not change the visual styling of the card (colors, borders, spacing, fonts) beyond adding the internal scroll container.
-Do not change variable names, code style, or structure outside the scope of this change.
-Do not add extra features, optimizations, or refactors that weren't requested.
-Do not introduce dark mode anywhere in the codebase.
-If this requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
-After implementing, list exactly which files and lines were changed, and why.
+After implementing, print the full final contents of prisma/schema.prisma and list every other file you had to touch (there should be none, unless a stray AppSetting reference forced a revert) and why.
