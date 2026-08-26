@@ -1,22 +1,23 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T03:40:33.164Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T04:01:21.171Z.
 
 ## Overview
 
-ABM account signal tracking dashboard: upload a company list (CSV/XLSX) and analyze/track funding, C-suite, product and partnership signals.
+Incremental data/value update to the Stored Signals dashboard. Files changed: (1) components/StoredSignalsDashboard.tsx — tabs renamed/reordered to Overview, Companies, Signals, Trends, Insights ('All Signals' → 'Signals', Insights added); Overview now renders the 11 required stat cards (Companies Tracked, Total Signals with H/M/L chips, High Alerts, C-Suite Changes, Funding, M&A, IPO, News, Product Launches, Partnerships, Creative Hiring) with thousands separators and 0 fallbacks; added the 90-day Signal Feed with count badge and source links, the weekly severity-stacked bar chart (click filters the feed by week), the display-type donut with clickable legend/segments (filters the feed by type), and the Top Industries horizontal bar chart (click filters the Signals table); display types now distinguish C-Suite Join vs C-Suite Exit from Action/Title fields and map unmapped types to News Mention; existing severity/link/exclusion helpers reused unchanged. (2) prisma/schema.prisma — echoed (RefreshEvent model, no column edits) per the database rule. (3) app/not-found.tsx — canonical zero-import template echoed per structure requirements. No theme, layout, library, or unrelated code changes.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 45
 
 ## Features
 
-- CSV/XLSX company list upload and parsing
-- Signal analysis via upstream workflow API
-- Stored signals dashboard with overview, trends, signals table and companies tabs
-- Severity normalization and source links
-- Refresh event logging via Prisma
-- Arena email gate with access-denied page
+- Five dashboard sections: Overview, Companies, Signals, Trends, Insights
+- 11 Overview stat cards derived from the ABM Signal Read API with severity split chips
+- 90-day Signal Feed with count badge, severity, display types and source links
+- Weekly signal trend stacked by severity with click-to-filter feed
+- Signal type breakdown donut with clickable legend filtering the feed
+- Top industries horizontal bar chart filtering the signals table
+- C-Suite Join vs Exit derivation from Action/Title fields
 
 ## Tech Stack
 
@@ -154,17 +155,53 @@ ABM account signal tracking dashboard: upload a company list (CSV/XLSX) and anal
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T03:40:33.164Z
-- **Request:** Fix the Vercel build failure with a minimal, surgical change. Do nothing beyond what is listed here.
+- **Updated at:** 2026-08-26T04:01:21.171Z
+- **Request:** Incremental update to the existing dashboard. Everything already built is fine — do NOT restyle, re-theme, refactor, rename, or remove anything. Keep the current visual theme, components, and charting library exactly as they are. This request is about DATA and VALUES ONLY: which tabs exist, which metrics each card shows, and which charts render. Ignore appearance entirely.
 
-CONTEXT
-The build fails at `prisma db push` because the last change removed the `updatedAt` field from the `RefreshEvent` model in prisma/schema.prisma, and the live Neon database still has that column with 3 non-null values. Prisma therefore wants to drop the column and refuses without --accept-data-loss.
+=== 1. NAVIGATION / TABS ===
 
-REQUIRED FIX
-- Restore `updatedAt DateTime @updatedAt` on the `RefreshEvent` model in prisma/schema.prisma so `prisma db push` no longer needs to drop the column.
-- Do NOT add `--accept-data-loss` to the build script. Do NOT drop any column.
-- If any code was changed to stop writing/reading that field, leave that code as-is; only the schema needs the field back.
+The dashboard must have exactly these five sections, in this order: Overview, Companies, Signals, Trends, Insights. Keep the existing navigation component and styling; only ensure these five exist with these labels. If a section already exists under a different label (e.g. "All Signals"), rename the label to "Signals" but keep its contents.
 
-CONSTRAINTS
-- Touch no other file, model, component, or logic. No refactors, no reformatting, no extra features.
-- Report which files and lines changed.
+=== 2. OVERVIEW TAB — STAT CARDS ===
+
+The Overview tab must show these 11 stat cards, each with a label and a large integer value, all derived from the ABM Signal Read API response already being fetched. Order:
+
+1. COMPANIES TRACKED = requested_count
+2. TOTAL SIGNALS = number of signals after filtering (see rules). Under the number, show three small inline chips with the severity split: H:<high count>, M:<medium count>, L:<low count>
+3. HIGH ALERTS = count of normalized-HIGH signals
+4. C-SUITE CHANGES = count of signals in the csuite family
+5. FUNDING = count of funding-family signals whose type is a funding round / debt financing / earnings event (funding family excluding M&A and IPO, which have their own cards)
+6. MERGERS & ACQUISITIONS = count of signals with signal_type "M_AND_A"
+7. IPO = count of signals with signal_type "IPO_SIGNAL"
+8. NEWS = count of signals whose display type is a news mention (unmapped / general news signal types)
+9. PRODUCT LAUNCHES = count of product-family signals (e.g. "NEW_PRODUCT_LAUNCH")
+10. PARTNERSHIPS = count of partnership-family signals
+11. CREATIVE HIRING = count of signals whose type indicates a creative/marketing hiring signal; render 0 when none are present
+
+Every card must render 0 rather than blank/undefined when the count is zero. Format values with thousands separators.
+
+=== 3. OVERVIEW TAB — FEED AND CHARTS ===
+
+Alongside the cards, the Overview tab must contain:
+
+a) SIGNAL FEED — a scrollable list of individual signals, newest first, with a count badge showing the total number of signals in the feed. Each entry shows: company_name, the display type label (e.g. "C-Suite Join", "C-Suite Exit", "Funding Round", "Product Launch", "Partnership", "Acquisition / M&A", "News Mention"), the normalized severity (HIGH / MEDIUM / LOW), the summary text (truncated to one or two lines), and source links (open in a new tab). Show a note stating the feed is limited to the last 90 days, and filter the feed to signals whose announcement_date (fallback last_seen_at) falls within the last 90 days.
+
+b) WEEKLY SIGNAL TREND — a bar chart of signal counts bucketed by week using announcement_date (fallback last_seen_at), stacked by normalized severity with a HIGH / MEDIUM / LOW legend. Clicking a bar filters the Signal Feed to that week.
+
+c) SIGNAL TYPE BREAKDOWN — a donut chart of signal counts grouped by display type label, with a legend listing each type present: C-Suite Join, C-Suite Exit, Funding Round, Acquisition / M&A, Product Launch, Partnership, News Mention. Clicking a legend entry or segment filters the Signal Feed to that type.
+
+d) TOP INDUSTRIES BY SIGNAL COUNT — a horizontal bar chart of signal counts grouped by the industry of the signal's company (from companies[].industry, joined on company_id / company_key), sorted descending, showing the top industries. Clicking a bar filters the signals table.
+
+Distinguish C-Suite Join vs C-Suite Exit from the csuite row's Action / Title fields (an appointment/promotion/join → "C-Suite Join"; a departure/exit → "C-Suite Exit").
+
+=== 4. DERIVATION RULES (unchanged — reuse the existing helpers) ===
+
+- Exclude rows where signal_type === "NO_SIGNIFICANT_SIGNAL" from every count, chart, table, and feed.
+- Severity normalization: funding → uppercase "HIGH"/"MEDIUM"; partnership → lowercase "high"; product → numeric confidence string, >= 8 HIGH, 5–7 MEDIUM, < 5 LOW; csuite → confidence empty, so fields["Validation Status"] === "Confirmed" ? HIGH : MEDIUM. Uppercase-compare all string values. Anything unresolvable → LOW.
+- Prefer counts derived from the filtered signals array; counts_by_family may be used only as a fallback when the corresponding signals are absent.
+- Source links: csuite rows have empty source_name/source_url — use fields["Supporting URLs"] (comma-separated; literal "N/A" means none). Some partnership rows carry multiple space-separated URLs in source_url — split on whitespace and render each separately.
+- Show an empty state when no signals remain after filtering.
+
+=== CONSTRAINTS ===
+
+Only touch what points 1–3 require. No new UI or charting library. No theme, color, spacing, or layout rework beyond adding the cards/charts listed. Do not change unrelated variable names, code style, or structure. Do not add features that were not requested. After implementing, list exactly which files were changed and why.
