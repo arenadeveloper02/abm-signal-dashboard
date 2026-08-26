@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { AnalyzeResult, ParsedCompany, StoredSignal, StoredSignalsResult } from '@/lib/types'
 import StoredSignalsDashboard from '@/components/StoredSignalsDashboard'
+import { DashboardSkeleton } from '@/components/Skeletons'
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, '')
@@ -327,19 +328,19 @@ export default function AccountSignalTrackerClient() {
                 onClick={() => void fetchAllStored()}
                 disabled={loadingStored}
                 aria-label="Refresh dashboard"
-                className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
+                className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1557B0] disabled:opacity-60"
               >
-                {loadingStored ? 'Refreshing\u2026' : 'Refresh Dashboard'}
+                {loadingStored ? 'Refreshing…' : 'Refresh Dashboard'}
               </button>
             </div>
           ) : (
-            <div className="ml-auto">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setView('dashboard')}
-                className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#575A66] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
+                className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
               >
-                \u2190 Back to Dashboard
+                ← Back to Dashboard
               </button>
             </div>
           )}
@@ -347,17 +348,45 @@ export default function AccountSignalTrackerClient() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6">
-        {view === 'import' ? (
-          <section className="mx-auto max-w-3xl">
-            <div className="rounded-2xl border border-[#E2E3E5] bg-white p-6 shadow-sm">
-              <h2 className="text-2xl font-semibold text-[#2C2D33]">Import Companies</h2>
+        {view === 'dashboard' ? (
+          loadingStored ? (
+            <DashboardSkeleton />
+          ) : storedError ? (
+            <div
+              className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center"
+              role="alert"
+            >
+              <p className="text-3xl" aria-hidden="true">⚠️</p>
+              <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load dashboard data</p>
+              <p className="mt-1 text-xs text-[#6D717F]">{storedError}</p>
+              <button
+                type="button"
+                onClick={() => void fetchAllStored()}
+                className="mt-4 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1557B0]"
+              >
+                Retry
+              </button>
+            </div>
+          ) : storedResult ? (
+            <StoredSignalsDashboard result={storedResult} />
+          ) : null
+        ) : (
+          <div className="mx-auto max-w-3xl space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold text-[#2C2D33]">Import Companies</h2>
               <p className="mt-1 text-sm text-[#6D717F]">
-                Add companies one at a time or upload a CSV/XLSX file, then save the list and run
-                signal analysis in the background.
+                Type companies one at a time or upload a CSV / XLSX file. All entries feed the same
+                list below — click “Save &amp; Analyze” when you are ready.
               </p>
+            </div>
 
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <div className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
+              <label htmlFor="typed-company" className="text-xs font-medium tracking-wide text-[#6D717F]">
+                Add a company manually
+              </label>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                 <input
+                  id="typed-company"
                   type="text"
                   value={typedCompany}
                   onChange={(e) => setTypedCompany(e.target.value)}
@@ -374,174 +403,158 @@ export default function AccountSignalTrackerClient() {
                 <button
                   type="button"
                   onClick={handleAddTyped}
-                  disabled={typedCompany.trim() === ''}
-                  className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
+                  className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1557B0]"
                 >
                   Add Company
                 </button>
               </div>
+            </div>
 
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label="Upload a CSV or XLSX file of companies"
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    fileInputRef.current?.click()
-                  }
-                }}
-                onDragOver={(e) => {
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setIsDragging(true)
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setIsDragging(false)
-                  handleFiles(e.dataTransfer.files)
-                }}
-                className={`mt-4 cursor-pointer rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-                  isDragging
-                    ? 'border-[#1A73E8] bg-[#F3F8FE]'
-                    : 'border-[#E2E3E5] bg-[#F7F8F9] hover:border-[#1A73E8]'
-                }`}
-              >
-                <p className="text-2xl" aria-hidden="true">\ud83d\udcc4</p>
-                <p className="mt-2 text-sm font-medium text-[#2C2D33]">
-                  Drag &amp; drop a CSV or XLSX file here, or click to browse
-                </p>
-                <p className="mt-1 text-xs text-[#6D717F]">
-                  Expected a column named Company, Company_Name or Company Name
-                </p>
-                {fileName !== '' && (
-                  <p className="mt-2 text-xs font-medium text-[#1A73E8]">Loaded: {fileName}</p>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,.xlsx"
-                  className="hidden"
-                  onChange={(e) => {
-                    handleFiles(e.target.files)
-                    e.target.value = ''
-                  }}
-                />
-              </div>
-
-              {importError !== null && (
-                <p role="alert" className="mt-3 text-sm font-medium text-[#F31A1A]">
-                  {importError}
-                </p>
-              )}
-
-              <div className="mt-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#6D717F]">
-                  {visibleRows.length} of {importList.length}{' '}
-                  {importList.length === 1 ? 'company' : 'companies'} in the list
-                </p>
-                {importList.length === 0 ? (
-                  <p className="mt-3 rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] px-4 py-6 text-center text-sm text-[#6D717F]">
-                    No companies in the list yet. Type a company above or upload a file.
-                  </p>
-                ) : (
-                  <ul className="mt-3 divide-y divide-[#F0F1F3] rounded-xl border border-[#E2E3E5]">
-                    {visibleRows.map((c) => (
-                      <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[#2C2D33]">{c.name}</p>
-                          {c.location !== '' && (
-                            <p className="truncate text-xs text-[#6D717F]">{c.location}</p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemove(c.id)}
-                          aria-label={`Remove ${c.name}`}
-                          className="rounded-lg border border-[#E2E3E5] px-3 py-1 text-xs font-medium text-[#F31A1A] transition-colors hover:border-[#F31A1A] hover:bg-[#FEF2F2]"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveAnalyze}
-                  disabled={importList.length === 0}
-                  className="rounded-xl bg-[#1A73E8] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
-                >
-                  Save &amp; Analyze
-                </button>
-              </div>
-            </div>
-          </section>
-        ) : loadingStored && storedResult === null ? (
-          <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-40 animate-pulse rounded-2xl bg-[#EDEEF0]" />
-              ))}
-            </div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="h-72 animate-pulse rounded-2xl bg-[#EDEEF0]" />
-              <div className="h-72 animate-pulse rounded-2xl bg-[#EDEEF0]" />
-            </div>
-          </div>
-        ) : storedError !== null && storedResult === null ? (
-          <div
-            className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center shadow-sm"
-            role="alert"
-          >
-            <p className="text-3xl" aria-hidden="true">\u26a0\ufe0f</p>
-            <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load the dashboard</p>
-            <p className="mt-1 text-xs text-[#6D717F]">{storedError}</p>
-            <button
-              type="button"
-              onClick={() => void fetchAllStored()}
-              className="mt-4 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB]"
+                  fileInputRef.current?.click()
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setIsDragging(true)
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragging(false)
+                handleFiles(e.dataTransfer.files)
+              }}
+              className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
+                isDragging
+                  ? 'border-[#1A73E8] bg-[#F3F8FE]'
+                  : 'border-[#E2E3E5] bg-white hover:border-[#1A73E8]'
+              }`}
+              aria-label="Upload a company file"
             >
-              Retry
-            </button>
-          </div>
-        ) : storedResult !== null ? (
-          <>
-            {storedError !== null && (
+              <p className="text-3xl" aria-hidden="true">📄</p>
+              <p className="mt-2 text-sm font-medium text-[#2C2D33]">
+                Drag &amp; drop a CSV or XLSX file here, or click to browse
+              </p>
+              <p className="mt-1 text-xs text-[#6D717F]">
+                Expected a column named Company, Company_Name or Company Name.
+                {fileName !== '' ? ` Last file: ${fileName}` : ''}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx"
+                className="hidden"
+                aria-hidden="true"
+                tabIndex={-1}
+                onChange={(e) => {
+                  handleFiles(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+
+            {importError && (
               <div
-                className="mb-4 rounded-xl border border-[#FB8145]/40 bg-[#FFF7ED] px-4 py-3 text-sm text-[#9A3412]"
+                className="rounded-xl border border-[#F31A1A]/40 bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]"
                 role="alert"
               >
-                {storedError}
+                {importError}
               </div>
             )}
-            <StoredSignalsDashboard result={storedResult} />
-          </>
-        ) : null}
+
+            <div className="rounded-2xl border border-[#E2E3E5] bg-white">
+              <div className="flex items-center justify-between border-b border-[#E2E3E5] px-4 py-3">
+                <p className="text-sm font-medium text-[#2C2D33]">
+                  {visibleRows.length} of {importList.length} compan
+                  {importList.length === 1 ? 'y' : 'ies'} in the list
+                </p>
+                {importList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setImportList([])}
+                    className="text-xs font-medium text-[#6D717F] transition-colors hover:text-[#F31A1A]"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+              {importList.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-[#8A8D99]">
+                  No companies added yet. Type a company above or upload a file to get started.
+                </p>
+              ) : (
+                <ul className="divide-y divide-[#F0F1F3]">
+                  {visibleRows.map((c) => (
+                    <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[#2C2D33]">{c.name}</p>
+                        {c.location !== '' && (
+                          <p className="truncate text-xs text-[#8A8D99]">{c.location}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(c.id)}
+                        aria-label={`Remove ${c.name}`}
+                        className="rounded-lg border border-[#E2E3E5] px-3 py-1 text-xs font-medium text-[#6D717F] transition-colors hover:border-[#F31A1A] hover:text-[#F31A1A]"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {importList.length > MAX_VISIBLE_ROWS && (
+                <p className="border-t border-[#F0F1F3] px-4 py-2 text-xs text-[#8A8D99]">
+                  Showing the first {MAX_VISIBLE_ROWS} rows. All {importList.length} companies will be
+                  analyzed.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setView('dashboard')}
+                className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAnalyze}
+                disabled={importList.length === 0}
+                className="rounded-xl bg-[#1A73E8] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1557B0] disabled:opacity-60"
+              >
+                Save &amp; Analyze
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
-      {toast !== null && (
+      {toast && (
         <div
-          className="fixed bottom-4 right-4 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-[#E2E3E5] bg-white p-4 shadow-lg"
           role="status"
           aria-live="polite"
+          className="fixed bottom-4 right-4 z-50 flex max-w-sm items-start gap-3 rounded-2xl border border-[#E2E3E5] bg-white p-4 shadow-[0_4px_16px_rgba(44,45,51,0.12)]"
         >
-          <div className="flex items-start gap-3">
-            <span className="text-lg" aria-hidden="true">\u23f3</span>
-            <p className="flex-1 text-sm text-[#2C2D33]">{toast}</p>
-            <button
-              type="button"
-              onClick={() => setToast(null)}
-              aria-label="Dismiss notification"
-              className="text-xs font-semibold text-[#1A73E8] transition-colors hover:text-[#0A2E5D]"
-            >
-              Dismiss
-            </button>
-          </div>
+          <span className="text-lg" aria-hidden="true">⏳</span>
+          <p className="flex-1 text-sm leading-relaxed text-[#2C2D33]">{toast}</p>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="Dismiss notification"
+            className="rounded-lg px-1.5 text-sm font-semibold text-[#6D717F] transition-colors hover:text-[#2C2D33]"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

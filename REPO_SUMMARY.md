@@ -1,24 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T11:31:02.738Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T11:51:07.702Z.
 
 ## Overview
 
-ABM account signal tracker dashboard: loads all companies' stored signals on launch, supports company import (typed + CSV/XLSX upload) with background analysis, and visualizes signals across overview, companies, signals, trends, and insights tabs.
+ABM account signal tracker dashboard that always opens to an all-companies view with import + background analysis.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- All-companies dashboard on load
-- Import Companies screen with typed entries and drag-and-drop CSV/XLSX upload
+- All-companies signal dashboard on load
+- Import Companies screen with typed entries and file upload
 - Background Save & Analyze with toast notification
-- Refresh Dashboard reloading all-company stored signals
-- Overview KPI cards with sparklines and severity pills
-- Weekly severity and family trend charts
-- Signal type donut with click-to-filter feed
-- Companies, Signals, Trends and Insights tabs
+- Refresh Dashboard re-fetches all stored signals
+- Overview KPI cards, charts, feed, companies, signals, trends and insights tabs
 
 ## Tech Stack
 
@@ -158,7 +155,7 @@ ABM account signal tracker dashboard: loads all companies' stored signals on lau
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T11:31:02.738Z
+- **Updated at:** 2026-08-26T11:51:07.702Z
 - **Request:** SCOPE LOCK — obey exactly:
 - SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte unless it is in the allowlist below.
 - Do NOT modify prisma/schema.prisma under any circumstance. It must stay a no-op for `prisma db push`. If you think it needs changing, STOP and leave it untouched.
