@@ -345,11 +345,6 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
     })
   }, [enriched, famFilter, sevFilter, companyFilter, query, sortKey, sortDir])
 
-  const newestRunTs = enriched.reduce<number>((acc, e) => {
-    const t = new Date(e.signal.run_date).getTime()
-    return Number.isNaN(t) ? acc : Math.max(acc, t)
-  }, 0)
-
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -360,13 +355,12 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
   }
 
   return (
-    <section aria-label="Account Signal Tracker dashboard">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mt-8 space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-[#2C2D33]">Account Signal Tracker</h2>
-          <p className="mt-1 text-sm text-[#6D717F]">
-            Last updated: {newestRunTs > 0 ? formatLongDateTime(new Date(newestRunTs)) : '\u2014'}
-            {newestRunTs > 0 && ` \u00b7 Updated ${agoLabel(newestRunTs)} ago`}
+          <h2 className="text-lg font-semibold text-[#2C2D33]">Stored Signals Dashboard</h2>
+          <p className="text-xs text-[#6D717F]">
+            {result.total} stored signal{result.total === 1 ? '' : 's'} \u00b7 {matched} of {requested} companies matched
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -375,26 +369,28 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
             onClick={onImport}
             className="rounded-xl border border-[#D6D9E0] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8]"
           >
-            Import Companies
+            Import New List
           </button>
           <button
             type="button"
             onClick={onRefresh}
             disabled={refreshing}
-            className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155DBB] disabled:opacity-60"
+            className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
           >
-            {refreshing ? 'Refreshing\u2026' : 'Refresh Dashboard'}
+            {refreshing ? 'Refreshing\u2026' : 'Refresh Signals'}
           </button>
         </div>
       </div>
 
       {result.unmatched_inputs.length > 0 && (
-        <p className="mt-3 text-xs text-[#6D717F]" role="note">
-          No stored signals found for: {result.unmatched_inputs.join(', ')}
-        </p>
+        <div className="rounded-xl border border-[#FDCDB5] bg-[#FFF9F5] px-4 py-3 text-xs text-[#974D29]" role="status">
+          {result.unmatched_inputs.length} compan{result.unmatched_inputs.length === 1 ? 'y' : 'ies'} had no stored signals:{' '}
+          {result.unmatched_inputs.slice(0, 8).join(', ')}
+          {result.unmatched_inputs.length > 8 ? '\u2026' : ''}
+        </div>
       )}
 
-      <div role="tablist" aria-label="Dashboard sections" className="mt-4 flex overflow-x-auto border-b border-[#E4E6EB]">
+      <div role="tablist" aria-label="Stored signals sections" className="flex gap-1 overflow-x-auto rounded-xl border border-[#E2E3E5] bg-white p-1">
         {TABS.map((t) => {
           const isActive = t.key === tab
           return (
@@ -404,10 +400,8 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
               role="tab"
               aria-selected={isActive}
               onClick={() => setTab(t.key)}
-              className={`whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40 ${
-                isActive
-                  ? 'border-[#1A73E8] text-[#1A73E8]'
-                  : 'border-transparent text-[#6D717F] hover:text-[#2C2D33]'
+              className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40 ${
+                isActive ? 'bg-[#F3F8FE] text-[#1A73E8]' : 'text-[#6D717F] hover:text-[#2C2D33]'
               }`}
             >
               {t.label}
@@ -417,164 +411,129 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
       </div>
 
       {tab === 'overview' && (
-        totalSignals === 0 ? (
-          <div className="mt-6 rounded-2xl border border-[#E4E6EB] bg-white p-12 text-center">
-            <p className="text-3xl" aria-hidden="true">\uD83D\uDCED</p>
-            <p className="mt-3 text-sm font-medium text-[#2C2D33]">No stored signals found</p>
-            <p className="mt-1 text-xs text-[#6D717F]">
-              No significant signals remain for the requested companies. Run an analysis first, then fetch again.
-            </p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {cards.map((c) => (
+              <StatCard key={c.label} label={c.label} value={c.value} color={c.color} />
+            ))}
           </div>
-        ) : (
-          <div className="mt-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {cards.map((c) => (
-                <StatCard key={c.label} label={c.label} value={c.value} color={c.color} />
-              ))}
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <section className="rounded-2xl border border-[#E4E6EB] bg-white p-5" aria-label="Severity distribution chart">
-                <h3 className="text-sm font-semibold text-[#6D717F]">Severity Distribution</h3>
-                {sevTotal === 0 ? (
-                  <p className="mt-16 text-center text-sm text-[#6D717F]">No severity data yet.</p>
-                ) : (
-                  <div className="mt-2 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={sevData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3} stroke="none">
-                          {sevData.map((d) => (
-                            <Cell key={d.name} fill={SEVERITY_COLORS[d.name]} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={tooltipStyle} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-                <ul className="mt-3 flex flex-wrap gap-4">
-                  {sevData.map((d) => (
-                    <li key={d.name} className="flex items-center gap-2 text-xs text-[#6D717F]">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SEVERITY_COLORS[d.name] }} aria-hidden="true" />
-                      {d.name} {'\u00b7'} <span className="text-[#2C2D33]">{d.value}</span>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signals by type chart">
+              <h3 className="text-sm font-semibold text-[#575A66]">Signals by Type</h3>
+              {typeData.length === 0 ? (
+                <p className="mt-16 text-center text-sm text-[#8A8D99]">No signal types yet.</p>
+              ) : (
+                <div className="mt-2 h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={typeData} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+                      <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" width={150} stroke="#A7AAB2" tick={{ fill: '#2C2D33', fontSize: 11 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
+                      <Bar dataKey="value" fill="#1A73E8" radius={[0, 6, 6, 0]} barSize={18} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signals by severity chart">
+              <h3 className="text-sm font-semibold text-[#575A66]">Signals by Severity</h3>
+              {sevTotal === 0 ? (
+                <p className="mt-16 text-center text-sm text-[#8A8D99]">No signals yet.</p>
+              ) : (
+                <div className="mt-2 h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={sevData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3} stroke="none">
+                        {sevData.map((d) => (
+                          <Cell key={d.name} fill={SEVERITY_COLORS[d.name]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={tooltipStyle} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <ul className="mt-3 flex flex-wrap gap-4">
+                {sevData.map((d) => (
+                  <li key={d.name} className="flex items-center gap-2 text-xs text-[#575A66]">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SEVERITY_COLORS[d.name] }} aria-hidden="true" />
+                    {d.name} \u00b7 <span className="text-[#2C2D33]">{d.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Top companies by signal count">
+              <h3 className="text-sm font-semibold text-[#575A66]">Top Companies</h3>
+              {topCompanies.length === 0 ? (
+                <p className="mt-16 text-center text-sm text-[#8A8D99]">No matched companies yet.</p>
+              ) : (
+                <ul className="mt-3 space-y-3">
+                  {topCompanies.slice(0, 8).map((c) => (
+                    <li key={c.company_id}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-[#2C2D33]">{c.company_name}</span>
+                        <span className="text-[#6D717F]">{c.total}</span>
+                      </div>
+                      <div className="mt-1 h-2 rounded-full bg-[#F7F8F9]">
+                        <div
+                          className="h-2 rounded-full bg-[#1A73E8]"
+                          style={{ width: `${Math.round((c.total / maxCompanyTotal) * 100)}%` }}
+                        />
+                      </div>
                     </li>
                   ))}
                 </ul>
-              </section>
+              )}
+            </section>
 
-              <section className="rounded-2xl border border-[#E4E6EB] bg-white p-5" aria-label="Signals by type chart">
-                <h3 className="text-sm font-semibold text-[#6D717F]">Signals by Type</h3>
-                {typeData.length === 0 ? (
-                  <p className="mt-16 text-center text-sm text-[#6D717F]">No signal types yet.</p>
-                ) : (
-                  <div className="mt-2 h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={typeData} margin={{ top: 5, right: 10, bottom: 10, left: 0 }}>
-                        <CartesianGrid stroke="#E4E6EB" strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                          dataKey="name"
-                          angle={-30}
-                          textAnchor="end"
-                          interval={0}
-                          height={70}
-                          stroke="#D6D9E0"
-                          tick={{ fill: '#6D717F', fontSize: 11 }}
-                        />
-                        <YAxis allowDecimals={false} stroke="#D6D9E0" tick={{ fill: '#6D717F', fontSize: 12 }} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
-                        <Bar dataKey="value" fill="#1A73E8" radius={[6, 6, 0, 0]} barSize={28} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </section>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <section className="rounded-2xl border border-[#E4E6EB] bg-white p-5" aria-label="Top companies by signals">
-                <h3 className="text-sm font-semibold text-[#6D717F]">Top Companies by Signals</h3>
-                {topCompanies.length === 0 ? (
-                  <p className="mt-16 text-center text-sm text-[#6D717F]">No company data yet.</p>
-                ) : (
-                  <ol className="mt-4 space-y-3">
-                    {topCompanies.map((c, i) => (
-                      <li key={c.company_id || c.company_name}>
-                        <div className="flex items-center justify-between gap-2 text-sm">
-                          <span className="font-medium text-[#2C2D33]">
-                            {i + 1}. {c.company_name}
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Recent high severity alerts">
+              <h3 className="text-sm font-semibold text-[#575A66]">Recent High Alerts</h3>
+              {recentHigh.length === 0 ? (
+                <p className="mt-16 text-center text-sm text-[#8A8D99]">No high severity alerts.</p>
+              ) : (
+                <ul className="mt-3 space-y-3">
+                  {recentHigh.slice(0, 5).map((e) => {
+                    const ts = new Date(e.signal.last_seen_at).getTime()
+                    return (
+                      <li key={e.signal.id} className="rounded-xl border border-[#E2E3E5] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-[#2C2D33]">{e.signal.company_name}</span>
+                          <FamilyBadge family={e.signal.signal_family} />
+                          <SeverityBadge severity={e.severity} />
+                          <span className="ml-auto text-xs text-[#8A8D99]">
+                            {formatLongDateTime(e.date)}
+                            {Number.isNaN(ts) ? '' : ` \u00b7 seen ${agoLabel(ts)} ago`}
                           </span>
-                          <span className="text-[#6D717F]">{c.total}</span>
                         </div>
-                        <div className="mt-1 h-2 w-full rounded-full bg-[#F0F1F4]">
-                          <div
-                            className="h-2 rounded-full bg-[#1A73E8]"
-                            style={{ width: `${Math.max(4, Math.round((c.total / maxCompanyTotal) * 100))}%` }}
-                            aria-hidden="true"
-                          />
-                        </div>
+                        <p className="mt-1 line-clamp-2 text-sm text-[#575A66]">{e.signal.summary}</p>
                       </li>
-                    ))}
-                  </ol>
-                )}
-              </section>
-
-              <section className="rounded-2xl border border-[#E4E6EB] bg-white p-5" aria-label="Recent high severity signals">
-                <h3 className="text-sm font-semibold text-[#6D717F]">Recent High Severity Signals</h3>
-                {recentHigh.length === 0 ? (
-                  <p className="mt-16 text-center text-sm text-[#6D717F]">No high severity signals.</p>
-                ) : (
-                  <div className="mt-4 max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-                    {recentHigh.slice(0, 12).map((e) => (
-                      <article
-                        key={e.signal.id}
-                        className="rounded-xl border border-[#E4E6EB] border-l-4 bg-[#F7F8F9] p-3"
-                        style={{ borderLeftColor: '#F31A1A' }}
-                      >
-                        <div className="flex flex-wrap items-center gap-2 text-sm">
-                          <span className="font-medium text-[#2C2D33]">{e.signal.company_name}</span>
-                          <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#6D717F]">
-                            {e.typeLabel}
-                          </span>
-                          <span className="ml-auto text-xs text-[#6D717F]">{formatShortDate(e.date)}</span>
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-[#4B4F5C]">{e.signal.summary}</p>
-                        {e.links.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-3">
-                            {e.links.map((l, li) => (
-                              <a
-                                key={`${l.url}-${li}`}
-                                href={l.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs font-medium text-[#1A73E8] hover:underline"
-                              >
-                                {l.label} {'\u2197'}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
           </div>
-        )
+        </div>
       )}
 
       {tab === 'trends' && (
-        <section className="mt-6 rounded-2xl border border-[#E4E6EB] bg-white p-5" aria-label="Signals over time chart">
-          <h3 className="text-sm font-semibold text-[#6D717F]">Signals Over Time</h3>
+        <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signals by month chart">
+          <h3 className="text-sm font-semibold text-[#575A66]">Signals by Month</h3>
           {trendData.length === 0 ? (
-            <p className="mt-16 text-center text-sm text-[#6D717F]">No dated signals to plot yet.</p>
+            <p className="mt-16 text-center text-sm text-[#8A8D99]">No trend data yet.</p>
           ) : (
             <div className="mt-2 h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="#E4E6EB" strokeDasharray="3 3" />
-                  <XAxis dataKey="month" stroke="#D6D9E0" tick={{ fill: '#6D717F', fontSize: 12 }} />
-                  <YAxis allowDecimals={false} stroke="#D6D9E0" tick={{ fill: '#6D717F', fontSize: 12 }} />
+                  <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
+                  <XAxis dataKey="month" stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
+                  <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
                   <Tooltip contentStyle={tooltipStyle} />
                   {FAMILIES.map((f) => (
                     <Area
@@ -596,7 +555,7 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
           )}
           <ul className="mt-3 flex flex-wrap gap-4">
             {FAMILIES.map((f) => (
-              <li key={f} className="flex items-center gap-2 text-xs text-[#6D717F]">
+              <li key={f} className="flex items-center gap-2 text-xs text-[#575A66]">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: FAMILY_META[f].color }} aria-hidden="true" />
                 {FAMILY_META[f].label}
               </li>
@@ -606,8 +565,8 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
       )}
 
       {tab === 'signals' && (
-        <div className="mt-6 space-y-4">
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E4E6EB] bg-white p-3">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4">
             <select
               aria-label="Filter by family"
               className={selectCls}
@@ -647,46 +606,47 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search signals..."
               aria-label="Search signals"
-              className={`w-48 sm:w-56 ${selectCls}`}
+              className={`${selectCls} w-56`}
             />
-            <span className="ml-auto text-xs text-[#6D717F]">
-              {tableRows.length} of {totalSignals} signal{totalSignals === 1 ? '' : 's'}
+            <span className="ml-auto text-xs text-[#8A8D99]">
+              {tableRows.length} of {enriched.length} signal{enriched.length === 1 ? '' : 's'}
             </span>
           </div>
 
-          {tableRows.length === 0 ? (
-            <div className="rounded-2xl border border-[#E4E6EB] bg-white p-12 text-center">
-              <p className="text-3xl" aria-hidden="true">\uD83D\uDD0D</p>
-              <p className="mt-3 text-sm font-medium text-[#2C2D33]">No signals match your filters</p>
-              <p className="mt-1 text-xs text-[#6D717F]">Try clearing the filters or search box.</p>
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-[#E4E6EB] bg-white">
-              <div className="max-h-[70vh] overflow-auto">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead>
-                    <tr>
-                      {COLS.map((col) => (
-                        <th
-                          key={col.key}
-                          className="sticky top-0 z-10 border-b border-[#E4E6EB] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]"
+          <div className="overflow-hidden rounded-2xl border border-[#E2E3E5] bg-white">
+            <div className="max-h-[70vh] overflow-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr>
+                    {COLS.map((col) => (
+                      <th
+                        key={col.key}
+                        className="sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6D717F]"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.key)}
+                          aria-label={`Sort by ${col.label}`}
+                          className="transition-colors hover:text-[#2C2D33]"
                         >
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(col.key)}
-                            aria-label={`Sort by ${col.label}`}
-                            className="transition-colors hover:text-[#2C2D33]"
-                          >
-                            {col.label}
-                            {sortKey === col.key && <span aria-hidden="true"> {sortDir === 'asc' ? '\u25b2' : '\u25bc'}</span>}
-                          </button>
-                        </th>
-                      ))}
+                          {col.label}
+                          {sortKey === col.key && <span aria-hidden="true"> {sortDir === 'asc' ? '\u25b2' : '\u25bc'}</span>}
+                        </button>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={COLS.length} className="px-4 py-12 text-center text-sm text-[#8A8D99]">
+                        No signals match your filters.
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {tableRows.map((e) => {
+                  ) : (
+                    tableRows.map((e) => {
                       const isExpanded = expandedId === e.signal.id
+                      const details = detailEntries(e.signal)
                       return (
                         <Fragment key={e.signal.id}>
                           <tr
@@ -696,101 +656,104 @@ export default function StoredSignalsDashboard({ result, onRefresh, onImport, re
                               if (ev.key === 'Enter' || ev.key === ' ') setExpandedId(isExpanded ? null : e.signal.id)
                             }}
                             aria-expanded={isExpanded}
-                            className="cursor-pointer border-b border-[#F0F1F4] transition-colors last:border-b-0 hover:bg-[#F7F8F9] focus:bg-[#F7F8F9] focus:outline-none"
+                            className="cursor-pointer border-b border-[#F0F1F3] transition-colors last:border-b-0 hover:bg-[#F7F8F9] focus:bg-[#F7F8F9] focus:outline-none"
                           >
                             <td className="px-4 py-3 font-medium text-[#2C2D33]">{e.signal.company_name}</td>
                             <td className="px-4 py-3"><FamilyBadge family={e.signal.signal_family} /></td>
-                            <td className="px-4 py-3 text-[#4B4F5C]">{e.typeLabel}</td>
+                            <td className="px-4 py-3 text-[#575A66]">{e.typeLabel}</td>
                             <td className="px-4 py-3"><SeverityBadge severity={e.severity} /></td>
                             <td className="px-4 py-3 text-[#6D717F]">{formatShortDate(e.date)}</td>
                           </tr>
                           {isExpanded && (
-                            <tr className="border-b border-[#F0F1F4] bg-[#F7F8F9] last:border-b-0">
+                            <tr className="border-b border-[#F0F1F3] bg-[#F7F8F9] last:border-b-0">
                               <td colSpan={COLS.length} className="px-4 py-4">
                                 <p className="text-sm leading-relaxed text-[#2C2D33]">{e.signal.summary}</p>
-                                {e.links.length > 0 && (
-                                  <div className="mt-2 flex flex-wrap gap-3">
-                                    {e.links.map((l, li) => (
-                                      <a
-                                        key={`${l.url}-${li}`}
-                                        href={l.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs font-medium text-[#1A73E8] hover:underline"
-                                      >
-                                        {l.label} {'\u2197'}
-                                      </a>
-                                    ))}
-                                  </div>
-                                )}
-                                {detailEntries(e.signal).length > 0 && (
-                                  <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                                    {detailEntries(e.signal).map(([k, v]) => (
-                                      <div key={k}>
-                                        <dt className="text-[11px] font-medium uppercase tracking-wide text-[#6D717F]">{k}</dt>
-                                        <dd className="break-words text-sm text-[#2C2D33]">{v}</dd>
+                                {details.length > 0 && (
+                                  <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+                                    {details.map(([k, v]) => (
+                                      <div key={k} className="flex gap-2 text-xs">
+                                        <dt className="shrink-0 font-medium text-[#6D717F]">{k}:</dt>
+                                        <dd className="text-[#2C2D33]">{v}</dd>
                                       </div>
                                     ))}
                                   </dl>
                                 )}
+                                <div className="mt-3 flex flex-wrap items-center gap-3">
+                                  {e.links.map((l, i) => (
+                                    <a
+                                      key={`${l.url}-${i}`}
+                                      href={l.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(ev) => ev.stopPropagation()}
+                                      className="inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline"
+                                    >
+                                      {l.label} \u2197
+                                    </a>
+                                  ))}
+                                  <span className="text-xs text-[#8A8D99]">
+                                    Last seen {formatLongDateTime(e.signal.last_seen_at)} \u00b7 seen {e.signal.seen_count} time{e.signal.seen_count === 1 ? '' : 's'}
+                                  </span>
+                                </div>
                               </td>
                             </tr>
                           )}
                         </Fragment>
                       )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
       )}
 
       {tab === 'companies' && (
-        <div className="mt-6">
-          {(result.companies ?? []).length === 0 ? (
-            <div className="rounded-2xl border border-[#E4E6EB] bg-white p-12 text-center">
-              <p className="text-3xl" aria-hidden="true">\uD83C\uDFE2</p>
-              <p className="mt-3 text-sm font-medium text-[#2C2D33]">No matched companies</p>
-              <p className="mt-1 text-xs text-[#6D717F]">None of the requested companies have stored signals yet.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {(result.companies ?? []).map((c) => (
-                <article key={c.company_id || c.company_name} className="rounded-2xl border border-[#E4E6EB] bg-white p-4">
-                  <div className="flex items-start justify-between gap-2">
+        topCompanies.length === 0 ? (
+          <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
+            <p className="text-sm font-medium text-[#2C2D33]">No matched companies</p>
+            <p className="mt-1 text-xs text-[#8A8D99]">None of the uploaded companies have stored signals yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {topCompanies.map((c) => (
+              <article key={c.company_id} className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
                     <h3 className="text-sm font-semibold text-[#2C2D33]">{c.company_name}</h3>
-                    <span className="rounded-full bg-[#F3F8FE] px-2 py-0.5 text-xs font-semibold text-[#1A73E8]">
-                      {c.total} signal{c.total === 1 ? '' : 's'}
+                    <p className="mt-0.5 text-xs text-[#8A8D99]">
+                      {[c.industry, c.hq].filter((v) => v.trim() !== '').join(' \u00b7 ') || '\u2014'}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[#F3F8FE] px-2 py-0.5 text-xs font-semibold text-[#1A73E8]">{c.total}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {FAMILIES.map((f) => (
+                    <span
+                      key={f}
+                      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                      style={{ color: FAMILY_META[f].color, borderColor: `${FAMILY_META[f].color}55`, backgroundColor: `${FAMILY_META[f].color}14` }}
+                    >
+                      {FAMILY_META[f].label} {c.by_family[f]}
                     </span>
-                  </div>
-                  <p className="mt-1 text-xs text-[#6D717F]">
-                    {[c.domain || c.website, c.industry, c.hq]
-                      .filter((v) => typeof v === 'string' && v.trim() !== '')
-                      .join(' \u00b7 ') || '\u2014'}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {FAMILIES.map((f) => (
-                      <span
-                        key={f}
-                        className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium"
-                        style={{
-                          color: FAMILY_META[f].color,
-                          borderColor: `${FAMILY_META[f].color}55`,
-                          backgroundColor: `${FAMILY_META[f].color}14`,
-                        }}
-                      >
-                        {FAMILY_META[f].label} {c.by_family[f]}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
+                  ))}
+                </div>
+                {c.website.trim() !== '' && (
+                  <a
+                    href={c.website.startsWith('http') ? c.website : `https://${c.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline"
+                  >
+                    {c.domain.trim() !== '' ? c.domain : 'Website'} \u2197
+                  </a>
+                )}
+              </article>
+            ))}
+          </div>
+        )
       )}
-    </section>
+    </div>
   )
 }
