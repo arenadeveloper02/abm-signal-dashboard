@@ -1,21 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T11:51:07.702Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T12:09:49.585Z.
 
 ## Overview
 
-ABM account signal tracker dashboard that always opens to an all-companies view with import + background analysis.
+ABM account signal tracker dashboard: landing shows all-companies stored signals, with an Import Companies screen (typed entries + CSV/XLSX upload) and background Save & Analyze.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- All-companies signal dashboard on load
-- Import Companies screen with typed entries and file upload
-- Background Save & Analyze with toast notification
-- Refresh Dashboard re-fetches all stored signals
-- Overview KPI cards, charts, feed, companies, signals, trends and insights tabs
+- All-companies dashboard on first load
+- Import Company / Refresh Dashboard actions
+- Import Companies screen with typed add + drag-and-drop upload + removable list
+- Save & Analyze runs analysis in the background with a toast
+- Overview, Companies, Signals, Trends and Insights tabs with recharts visualizations
 
 ## Tech Stack
 
@@ -155,25 +155,32 @@ ABM account signal tracker dashboard that always opens to an all-companies view 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T11:51:07.702Z
+- **Updated at:** 2026-08-26T12:09:49.585Z
 - **Request:** SCOPE LOCK — obey exactly:
 - SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte unless it is in the allowlist below.
-- Do NOT modify prisma/schema.prisma under any circumstance. It must stay a no-op for `prisma db push`. If you think it needs changing, STOP and leave it untouched.
 - Do NOT change the theme, colors, fonts, layout spacing, or add dark mode. Match the existing visual style.
 - Do NOT refactor, rename, reorder, reformat, or "clean up" any file not in the allowlist.
 - Do NOT add dependencies, env vars, config, or new API routes.
 - Do NOT change the API endpoints, request/response shapes, data-fetching logic, response parsing, or the dashboard tabs/charts themselves. Reuse the EXISTING all-companies fetch and the EXISTING analyze call as they are.
 - Touch ONLY the file(s) in the allowlist.
 
-FILES YOU MAY EDIT (allowlist — nothing else):
-- the single client component that renders the landing/dashboard view, the action buttons, the upload/import screen, and the dashboard tabs (identify it yourself; do not touch any other file). If the import/upload screen genuinely lives in a separate component, you may edit that ONE component too — but STOP and report it first if it is outside this file.
+BUILD FIX (REQUIRED — this is the ONLY reason prior deploys failed):
+The Vercel build runs `prisma db push` which fails with: "You are about to drop the `RefreshEvent` table, which is not empty (3 rows). Use --accept-data-loss". We WANT to drop RefreshEvent (it is a disposable 3-row refresh log). Do EXACTLY ONE of the following, whichever is cleaner in this repo, and NOTHING else schema/build related:
+ - Preferred: update the build script in package.json so the prisma db push step passes `--accept-data-loss` (e.g. `prisma db push --accept-data-loss`). Do not change any other script.
+ - OR, if the RefreshEvent model still exists in prisma/schema.prisma, remove ONLY that model block so schema matches the intended DB, AND ensure the build's `prisma db push` can drop the table (add `--accept-data-loss` if needed).
+Do not otherwise modify prisma/schema.prisma, package.json, or any config. Confirm the build's db push now succeeds and drops RefreshEvent.
 
+FILES YOU MAY EDIT (allowlist):
+- the single client component that renders the landing/dashboard view, the action buttons, the upload/import screen, and the dashboard tabs (identify it yourself). If the import/upload screen lives in a separate component, you may edit that ONE component too — but STOP and report it first if it is outside this file.
+- package.json (ONLY the build script db-push flag) and/or prisma/schema.prisma (ONLY to remove the RefreshEvent model), strictly for the BUILD FIX above.
 
-THE CHANGES (make exactly these, nothing more):
+THE UI CHANGES (make exactly these, nothing more):
 
 1. LANDING = ALL-COMPANIES DASHBOARD, ALWAYS:
 On first load, immediately show the dashboard populated with ALL companies' data. Never show the upload screen or an empty state first (an error fallback if the fetch genuinely fails is fine). Reuse the EXISTING all-companies stored-signals fetch and trigger it automatically on mount. The dashboard must ALWAYS display data for all companies.
 
+2. REMOVE THE OLD COMPANY TABLE FROM THE DASHBOARD:
+The COMPANY / LOCATION / ACTION table with Remove buttons must NOT render on the dashboard in any state. (A company list still appears inside the Import screen per point 4 — but never on the dashboard itself.)
 
 3. EXACTLY TWO BUTTONS ON THE DASHBOARD:
 Replace the current dashboard button set with only these two, side by side:
@@ -203,6 +210,6 @@ DO NOT CHANGE:
 
 AFTER IMPLEMENTING:
 - List every file you modified. If anything outside the allowlist appears, revert it.
-- Confirm prisma/schema.prisma is byte-for-byte unchanged and no file under app/api/ was touched.
+- Confirm the build's `prisma db push` now succeeds (RefreshEvent dropped) and `npm run build` exits 0.
 - Confirm: (a) app opens straight to the all-companies dashboard with the old company table gone, (b) dashboard has exactly two buttons — "Import Company" and "Refresh Dashboard", (c) Refresh Dashboard always loads all companies, (d) Import Company opens the Import screen with add-company input + file upload + company list + "Save & Analyze", (e) Save & Analyze fires the analyze call in the background, shows the dashboard for all companies, and displays the background-analysis popup.
 - Print the final contents of each file you changed.
