@@ -1,25 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T04:16:01.363Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T06:35:05.800Z.
 
 ## Overview
 
-Incremental data-and-values update to the stored-signals dashboard. Files changed: components/StoredSignalsDashboard.tsx (renders the five tabs — Overview, Companies, Signals, Trends, Insights — with the 11 Overview stat cards, 90-day Signal Feed with count badge, weekly severity-stacked trend with click-to-filter, signal-type donut with clickable legend/segments, and top-industries bar chart wired to the Signals tab); components/AccountSignalTrackerClient.tsx (completed the upload/list JSX and wired the stored-signals result into StoredSignalsDashboard — data flow only, no restyle); components/KpiCard.tsx (values now render with thousands separators only — no visual rework); lib/utils.ts (added derivation helpers: NO_SIGNIFICANT_SIGNAL exclusion constant, per-family severity normalization, display-type mapping incl. C-Suite Join/Exit from Action/Title fields, Supporting URLs / whitespace-split source-link extraction, announcement_date→last_seen_at date fallback, formatNumber); lib/types.ts (added NormalizedSeverity and SourceLink types); prisma/schema.prisma (returned unchanged per database rule — no columns edited or removed).
+ABM Account Signal Tracker. Root cause of the dark 'Stored Signals Dashboard' panel: hardcoded dark-theme Tailwind arbitrary-value classes and inline styles inside components/StoredSignalsDashboard.tsx (bg-[#15161C]/bg-[#1B1D24] card backgrounds, border-[#22242C]/border-[#2E313A] borders, text-white/text-[#D3D6DE] text, a dark recharts tooltipStyle object with backgroundColor #22242C) plus the shared components it renders — components/KpiCard.tsx (bg-[#1B1D24], text-white, #2E313A border) and components/TabBar.tsx (bg-[#15161C] nav). There is no dark: variant or theme provider; the dark look was hardcoded. Fix: replaced those dark classes/inline styles with the same light styling used on the rest of the page (white surfaces, #E2E3E5 borders, #2C2D33/#575A66/#8A8D99 text, white chart background and tooltip) while keeping the exact same data logic, tabs, metrics, chart types and chart color palette. prisma/schema.prisma is returned with RefreshEvent intact including updatedAt (restored per live-database baseline; never dropped).
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 45
 
 ## Features
 
-- Five dashboard tabs: Overview, Companies, Signals, Trends, Insights
-- 11 Overview stat cards derived from the ABM Signal Read API (Companies Tracked, Total Signals with H/M/L chips, High Alerts, C-Suite Changes, Funding, M&A, IPO, News, Product Launches, Partnerships, Creative Hiring)
-- Signal Feed limited to the last 90 days with count badge, type/severity chips, summaries and multi-source links
-- Weekly severity-stacked bar chart with click-to-filter feed by week
-- Signal type donut with clickable legend/segments filtering the feed
-- Top industries horizontal bar chart filtering the Signals tab
-- NO_SIGNIFICANT_SIGNAL rows excluded from every count, chart, table and feed
-- Per-family severity normalization (funding/partnership/product/csuite rules) with LOW fallback
-- Thousands separators on all card values with 0 rendered for empty counts
+- Light-themed Stored Signals Dashboard panel matching the rest of the page
+- Overview / Companies / Signals / Trends / Insights tabs preserved
+- Light-tinted colored-border KPI stat cards with original accent palette
+- Charts on white background with original series colors
+- CSV/XLSX company upload and stored-signal analysis (unchanged)
 
 ## Tech Stack
 
@@ -157,53 +153,30 @@ Incremental data-and-values update to the stored-signals dashboard. Files change
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T04:16:01.363Z
-- **Request:** Incremental update to the existing dashboard. Everything already built is fine — do NOT restyle, re-theme, refactor, rename, or remove anything. Keep the current visual theme, components, and charting library exactly as they are. This request is about DATA and VALUES ONLY: which tabs exist, which metrics each card shows, and which charts render. Ignore appearance entirely.
+- **Updated at:** 2026-08-26T06:35:05.800Z
+- **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
-=== 1. NAVIGATION / TABS ===
+Changes to implement:
 
-The dashboard must have exactly these five sections, in this order: Overview, Companies, Signals, Trends, Insights. Keep the existing navigation component and styling; only ensure these five exist with these labels. If a section already exists under a different label (e.g. "All Signals"), rename the label to "Signals" but keep its contents.
+STANDING RULE — THEME LOCK (READ FIRST):
+The "Stored Signals Dashboard" panel (containing the Overview / Companies / Signals / Trends / Insights tabs, stat cards, feed, and charts) is CURRENTLY RENDERING WITH A DARK/BLACK BACKGROUND AND WHITE TEXT. THIS IS WRONG AND MUST BE FIXED, NOT PRESERVED.
 
-=== 2. OVERVIEW TAB — STAT CARDS ===
+The rest of the page (header, company table, buttons) is already correct: white/light-gray background, dark text, light borders. The "Stored Signals Dashboard" panel must match that SAME light styling — white/light card background, dark text, light gray borders, the original light-tinted colored-border stat cards (blue, teal, red, orange, purple, pink, green, amber), and charts on a white background with the original palette.
 
-The Overview tab must show these 11 stat cards, each with a label and a large integer value, all derived from the ABM Signal Read API response already being fetched. Order:
+Before making any change, first FIND AND REPORT the source of the dark styling on this panel — e.g. a `dark:` Tailwind variant being applied, a hardcoded dark className, inline dark styles, a dark-mode theme provider/context, or a separate component/stylesheet for this panel that differs from the rest of the page. Explain what you found, then fix it.
 
-1. COMPANIES TRACKED = requested_count
-2. TOTAL SIGNALS = number of signals after filtering (see rules). Under the number, show three small inline chips with the severity split: H:<high count>, M:<medium count>, L:<low count>
-3. HIGH ALERTS = count of normalized-HIGH signals
-4. C-SUITE CHANGES = count of signals in the csuite family
-5. FUNDING = count of funding-family signals whose type is a funding round / debt financing / earnings event (funding family excluding M&A and IPO, which have their own cards)
-6. MERGERS & ACQUISITIONS = count of signals with signal_type "M_AND_A"
-7. IPO = count of signals with signal_type "IPO_SIGNAL"
-8. NEWS = count of signals whose display type is a news mention (unmapped / general news signal types)
-9. PRODUCT LAUNCHES = count of product-family signals (e.g. "NEW_PRODUCT_LAUNCH")
-10. PARTNERSHIPS = count of partnership-family signals
-11. CREATIVE HIRING = count of signals whose type indicates a creative/marketing hiring signal; render 0 when none are present
+Explicitly remove any dark-theme classes/styles applied to this panel and replace them with the same light styling used elsewhere on this page. Do not apply dark mode to this panel under any circumstance, even conditionally or as a default.
 
-Every card must render 0 rather than blank/undefined when the count is zero. Format values with thousands separators.
+Do not change colors, fonts, border-radius, spacing, chart library, or chart color palette beyond fixing this dark/light mismatch. Do not touch any other part of the page that is already light-themed and working correctly.
 
-=== 3. OVERVIEW TAB — FEED AND CHARTS ===
+This request is about DATA and VALUES ONLY beyond the theme fix above: which tabs exist, which metrics each card shows, and which charts render. Ignore appearance entirely except for the dark→light fix described above.
 
-Alongside the cards, the Overview tab must contain:
+Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
-a) SIGNAL FEED — a scrollable list of individual signals, newest first, with a count badge showing the total number of signals in the feed. Each entry shows: company_name, the display type label (e.g. "C-Suite Join", "C-Suite Exit", "Funding Round", "Product Launch", "Partnership", "Acquisition / M&A", "News Mention"), the normalized severity (HIGH / MEDIUM / LOW), the summary text (truncated to one or two lines), and source links (open in a new tab). Show a note stating the feed is limited to the last 90 days, and filter the feed to signals whose announcement_date (fallback last_seen_at) falls within the last 90 days.
 
-b) WEEKLY SIGNAL TREND — a bar chart of signal counts bucketed by week using announcement_date (fallback last_seen_at), stacked by normalized severity with a HIGH / MEDIUM / LOW legend. Clicking a bar filters the Signal Feed to that week.
-
-c) SIGNAL TYPE BREAKDOWN — a donut chart of signal counts grouped by display type label, with a legend listing each type present: C-Suite Join, C-Suite Exit, Funding Round, Acquisition / M&A, Product Launch, Partnership, News Mention. Clicking a legend entry or segment filters the Signal Feed to that type.
-
-d) TOP INDUSTRIES BY SIGNAL COUNT — a horizontal bar chart of signal counts grouped by the industry of the signal's company (from companies[].industry, joined on company_id / company_key), sorted descending, showing the top industries. Clicking a bar filters the signals table.
-
-Distinguish C-Suite Join vs C-Suite Exit from the csuite row's Action / Title fields (an appointment/promotion/join → "C-Suite Join"; a departure/exit → "C-Suite Exit").
-
-=== 4. DERIVATION RULES (unchanged — reuse the existing helpers) ===
-
-- Exclude rows where signal_type === "NO_SIGNIFICANT_SIGNAL" from every count, chart, table, and feed.
-- Severity normalization: funding → uppercase "HIGH"/"MEDIUM"; partnership → lowercase "high"; product → numeric confidence string, >= 8 HIGH, 5–7 MEDIUM, < 5 LOW; csuite → confidence empty, so fields["Validation Status"] === "Confirmed" ? HIGH : MEDIUM. Uppercase-compare all string values. Anything unresolvable → LOW.
-- Prefer counts derived from the filtered signals array; counts_by_family may be used only as a fallback when the corresponding signals are absent.
-- Source links: csuite rows have empty source_name/source_url — use fields["Supporting URLs"] (comma-separated; literal "N/A" means none). Some partnership rows carry multiple space-separated URLs in source_url — split on whitespace and render each separately.
-- Show an empty state when no signals remain after filtering.
-
-=== CONSTRAINTS ===
-
-Only touch what points 1–3 require. No new UI or charting library. No theme, color, spacing, or layout rework beyond adding the cards/charts listed. Do not change unrelated variable names, code style, or structure. Do not add features that were not requested. After implementing, list exactly which files were changed and why.
+Only touch the files/functions directly related to the points above.
+Do not change variable names, code style, or structure outside the scope of these changes.
+Do not add extra features, optimizations, or refactors that weren't requested.
+Do not introduce dark mode anywhere else in the codebase.
+If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
+After implementing, list exactly which files and lines were changed, and why — including specifically what caused the dark theme on the Stored Signals Dashboard panel and how it was fixed.

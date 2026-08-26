@@ -17,7 +17,7 @@ interface TabBarProps {
 
 export default function TabBar({ active, onChange }: TabBarProps) {
   return (
-    <nav className="border-b border-[#2E313A] bg-[#15161C]">
+    <nav className="border-b border-[#E2E3E5] bg-white">
       <div className="mx-auto max-w-7xl px-4">
         <div role="tablist" aria-label="Dashboard sections" className="flex overflow-x-auto">
           {TABS.map((tab) => {
@@ -31,8 +31,8 @@ export default function TabBar({ active, onChange }: TabBarProps) {
                 onClick={() => onChange(tab.key)}
                 className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3BC884]/60 ${
                   isActive
-                    ? 'border-[#3BC884] text-white'
-                    : 'border-transparent text-[#8A8F9C] hover:text-[#D3D6DE]'
+                    ? 'border-[#3BC884] text-[#2C2D33]'
+                    : 'border-transparent text-[#8A8D99] hover:text-[#575A66]'
                 }`}
               >
                 {tab.label}
