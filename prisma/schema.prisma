@@ -1,16 +1,17 @@
 // **NOTE: dont remove updatedAt in any tables **
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model AppSetting {
-  key       String   @id
-  value     String
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @updatedAt
 }

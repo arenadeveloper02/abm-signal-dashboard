@@ -104,7 +104,7 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
             {famData.map((d) => (
               <li key={d.name} className="flex items-center gap-2 text-xs text-[#A6ABB8]">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} aria-hidden="true" />
-                {d.name} \u00b7 <span className="text-white">{d.value}</span>
+                {d.name} {'\u00b7'} <span className="text-white">{d.value}</span>
               </li>
             ))}
           </ul>
@@ -141,7 +141,7 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-xs text-[#A6ABB8]">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: FAMILY_META[s.family].color }} aria-hidden="true" />
-                  {s.signal_type} \u00b7 {s.confidence}
+                  {s.signal_type} {'\u00b7'} {s.confidence}
                 </div>
                 <p className="mt-1 text-xs text-[#8C919E]">{s.summary}</p>
               </li>

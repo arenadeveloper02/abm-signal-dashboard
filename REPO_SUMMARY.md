@@ -1,22 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-26T17:50:02.845Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-26T18:13:51.849Z.
 
 ## Overview
 
-ABM account signal tracker dashboard with company import, stored signal analytics, and expandable company rows showing signal history, tech stack, and keywords.
+ABM account signal tracker dashboard. Fixed the broken/truncated StoredSignalsDashboard.tsx (unclosed JSX tags and invalid character that failed next build) and restored the Recent Signals card's inner padding (p-5, matching sibling cards) while keeping the internal max-h-96 overflow-y-auto scroll region.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Import companies via CSV/XLSX or manual entry
-- Stored signal analytics with KPI cards and charts
-- Companies tab with expandable inline detail rows (Signal History, Tech Stack, Keywords)
-- Signal feed with type and week filters
-- Weekly trends by signal family
-- Insights summary tiles
+- Overview tab with KPI cards, weekly severity chart, signal-type donut, and a padded Recent Signals card with internal scrolling
+- Companies tab with expandable company detail rows
+- Signals feed with type and week filters
+- Trends tab with weekly severity volume chart
+- Insights tab grouping high-severity signals by family
 
 ## Tech Stack
 
@@ -156,39 +155,27 @@ ABM account signal tracker dashboard with company import, stored signal analytic
 
 ## Latest Change
 
-- **Updated at:** 2026-08-26T17:50:02.845Z
+- **Updated at:** 2026-08-26T18:13:51.849Z
 - **Request:** SCOPE LOCK — obey exactly:
-- SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the change described below.
-- Do NOT change the theme, colors, fonts, spacing, card styling, layout, or any other component.
+- SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the single fix below.
+- Do NOT change the theme, colors, fonts, layout, card borders, or any other component.
 - Do NOT refactor, rename, reorder, reformat, or "clean up" anything.
 - Do NOT add dependencies, env vars, config, or new API routes.
-- Do NOT change any API endpoint, request/response shape, data-fetching logic, or response parsing. Reuse ONLY data the app already fetches/has for each company.
-- Do NOT touch any file under app/api/ or lib/, the Overview tab, the Signals tab, the Trends tab, the Insights tab, the dashboard buttons, or the Import screen.
-- Do NOT modify prisma/schema.prisma, package.json, or any config. Leave the build exactly as-is (the prisma db push --accept-data-loss build fix must stay untouched).
-- Touch ONLY the single client component that renders the COMPANIES tab table.
+- Do NOT touch any file under app/api/ or lib/, the Companies tab, the Signals tab, the Trends tab, the Insights tab, the buttons, or the Import screen.
+- Do NOT change any API endpoint, data-fetching, parsing, prisma/schema.prisma, package.json, or the build script (the prisma db push --accept-data-loss fix must stay).
+- Touch ONLY the single client component that renders the Overview tab, specifically the "Recent Signals" card.
 
-THE ONE CHANGE (make exactly this, nothing more):
-On the COMPANIES tab, make each company ROW expandable so clicking it drags down an inline detail panel for THAT company, directly beneath its row. Match the reference screenshot.
+THE PROBLEM:
+A previous edit that added an internal max-height + overflow-y-auto scroll region to the "Recent Signals" card REMOVED / lost the card's inner padding, so the content now touches the card edges.
 
-Behavior:
-- Clicking a company row toggles an expanded detail section immediately below that row (accordion-style). Clicking it again collapses it. Only one row expands/collapses independently — do not navigate away or open a modal; the detail must expand INLINE within the table/list, pushing the rows below it down.
-- Keep the existing row exactly as-is (#, COMPANY, INDUSTRY, LOCATION, EMPLOYEES, REVENUE, FUNDING STAGE, LAST SIGNAL, SIGNALS, ACTIONS). Do not change the columns, the Website/Search action buttons, or the signals count badge. The Website/Search buttons must still work and must NOT toggle the expansion (stop click propagation on them).
-- Add a subtle affordance that the row is expandable (e.g. a chevron that rotates on expand) using the existing styling — no new color theme.
-
-The expanded detail panel must show, using data the app ALREADY has for that company (do NOT add new fetches):
-- "Signal History": a vertical list of that company's signals. Each item shows a severity badge (LOW / MEDIUM / HIGH) styled by severity, the signal type (e.g. News Mention, Partnership, C-Suite Change), the signal title/description, a relative time (e.g. "2mo ago"), and a "Source" link if a source URL exists. Match the two-column reference layout: Signal History on the left.
-- "Tech Stack": on the right, the company's tech stack rendered as small pill/tag chips (e.g. Azure, Snowflake). Only render if data exists.
-- "Keywords": below Tech Stack on the right, the company's keywords as pill/tag chips (e.g. enterprise AI, partner network...). Only render if data exists.
-- If a section has no data, hide that section gracefully (no empty headers, no crash).
-
-Constraints:
-- Reuse existing severity-badge and tag/pill styles if the component already has them; do not invent a new visual language.
-- Do NOT change how companies or signals are fetched or parsed — only render already-available fields in the expanded panel. If the company object doesn't already include signals/techStack/keywords, use whatever equivalent fields already exist on it; STOP and report if none exist rather than adding a fetch.
-- Apply this ONLY to the Companies tab. Do not change scrolling or expansion anywhere else.
+THE ONE FIX (make exactly this, nothing more):
+- Restore the "Recent Signals" card's inner padding to match the OTHER cards on the dashboard (use the exact same padding class the sibling cards use — e.g. p-6 / the value they use — do not invent a new value).
+- Keep the internal scroll behavior working: the signal list must still have its fixed max-height and overflow-y-auto so it scrolls INSIDE the card and not the whole page.
+- Make sure padding sits on the card container so the header/title AND the scrollable list are both inset, while the scroll region itself still scrolls correctly (do not let the scrollbar sit awkwardly outside the padding if the other cards don't).
+- Do NOT change anything else about the card, the data, the list rows, or any other card.
 
 AFTER IMPLEMENTING:
-- Confirm you edited exactly ONE file (the Companies tab component).
-- Confirm clicking a company row expands an inline panel with Signal History + Tech Stack + Keywords, and clicking again collapses it; Website/Search buttons still work without toggling.
-- Confirm no API/endpoint/parsing/schema/build/other-tab changes were made.
-- Confirm npm run build exits 0.
-- Print the name of the file changed and the before/after of the key lines (row click handler + the new expanded panel JSX).
+- Confirm the Recent Signals card padding now matches the other cards, and the internal scroll still works (page does not scroll).
+- Confirm you edited exactly ONE file and only the Recent Signals card's padding/scroll wrapper.
+- Confirm npm run build exits 0 and nothing else changed.
+- Print the before/after of the changed lines and the file name.
