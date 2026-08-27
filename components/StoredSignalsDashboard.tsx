@@ -78,6 +78,12 @@ const SEVERITY_COLORS: Record<NormalizedSeverity, string> = {
   LOW: '#9AA0AE',
 }
 
+const OVERVIEW_SEVERITY_COLORS: Record<NormalizedSeverity, string> = {
+  HIGH: '#F31A1A',
+  MEDIUM: '#FB8145',
+  LOW: '#3BC884',
+}
+
 const SEVERITIES: NormalizedSeverity[] = ['HIGH', 'MEDIUM', 'LOW']
 
 const TYPE_COLOR_ORDER = [
@@ -159,11 +165,20 @@ function familyOf(e: EnrichedSignal): string {
   return (e.s.signal_family ?? '').toLowerCase()
 }
 
+function splitHeadline(summary: string): { headline: string; description: string } {
+  const text = summary.trim()
+  const idx = text.indexOf('. ')
+  if (idx > 10 && idx < 140) {
+    return { headline: text.slice(0, idx + 1), description: text.slice(idx + 2) }
+  }
+  return { headline: text, description: '' }
+}
+
 function SeverityBadge({ severity }: { severity: NormalizedSeverity }) {
   const color = SEVERITY_COLORS[severity]
   return (
     <span
-      className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide"
+      className='inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide'
       style={{ color, borderColor: `${color}55`, backgroundColor: `${color}14` }}
     >
       {severity}
@@ -174,8 +189,8 @@ function SeverityBadge({ severity }: { severity: NormalizedSeverity }) {
 function TypeBadge({ label }: { label: string }) {
   const color = typeColor(label)
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E3E5] bg-[#F7F8F9] px-2 py-0.5 text-[11px] font-medium text-[#575A66]">
-      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+    <span className='inline-flex items-center gap-1.5 rounded-full border border-[#E2E3E5] bg-[#F7F8F9] px-2 py-0.5 text-[11px] font-medium text-[#575A66]'>
+      <span className='h-1.5 w-1.5 rounded-full' style={{ backgroundColor: color }} aria-hidden='true' />
       {label}
     </span>
   )
@@ -183,31 +198,84 @@ function TypeBadge({ label }: { label: string }) {
 
 function SignalRow({ e }: { e: EnrichedSignal }) {
   return (
-    <article className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-[#2C2D33]">{e.s.company_name}</span>
+    <article className='rounded-2xl border border-[#E2E3E5] bg-white p-4'>
+      <div className='flex flex-wrap items-center gap-2'>
+        <span className='font-medium text-[#2C2D33]'>{e.s.company_name}</span>
         <TypeBadge label={e.displayType} />
         <SeverityBadge severity={e.severity} />
-        <span className="ml-auto text-xs text-[#8A8D99]">{formatDate(e.dateIso)}</span>
+        <span className='ml-auto text-xs text-[#8A8D99]'>{formatDate(e.dateIso)}</span>
       </div>
       {e.s.summary !== '' && (
-        <p className="mt-2 text-sm leading-relaxed text-[#575A66]">{e.s.summary}</p>
+        <p className='mt-2 text-sm leading-relaxed text-[#575A66]'>{e.s.summary}</p>
       )}
       {e.links.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-3">
+        <div className='mt-2 flex flex-wrap gap-3'>
           {e.links.map((l, i) => (
             <a
               key={`${l.url}-${i}`}
               href={l.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline"
+              target='_blank'
+              rel='noopener noreferrer'
+              className='inline-flex items-center gap-1 text-xs font-medium text-[#1A73E8] hover:underline'
             >
               {l.name} ↗
             </a>
           ))}
         </div>
       )}
+    </article>
+  )
+}
+
+function OverviewSignalRow({ e, company }: { e: EnrichedSignal; company: StoredCompany | undefined }) {
+  const color = OVERVIEW_SEVERITY_COLORS[e.severity]
+  const { headline, description } = splitHeadline(e.s.summary ?? '')
+  const website = (company?.website ?? '').trim()
+  const location = (company?.hq ?? '').trim()
+  const source = e.links[0]
+  const d = new Date(e.dateIso)
+  const dateLabel = Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return (
+    <article className='rounded-xl border border-[#E2E3E5] border-l-4 bg-white p-4' style={{ borderLeftColor: color }}>
+      <div className='flex flex-wrap items-center gap-2'>
+        <span
+          className='inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide text-white'
+          style={{ backgroundColor: color }}
+        >
+          {e.severity}
+        </span>
+        <TypeBadge label={e.displayType} />
+        <span className='ml-auto text-xs text-[#8A8D99]'>{dateLabel}</span>
+      </div>
+      <div className='mt-2'>
+        {website !== '' ? (
+          <a
+            href={website.startsWith('http') ? website : `https://${website}`}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-sm font-bold text-[#1A73E8] hover:underline'
+          >
+            {e.s.company_name}
+          </a>
+        ) : (
+          <span className='text-sm font-bold text-[#1A73E8]'>{e.s.company_name}</span>
+        )}
+      </div>
+      {headline !== '' && <p className='mt-1 text-sm font-semibold text-[#2C2D33]'>{headline}</p>}
+      {description !== '' && <p className='mt-1 text-sm leading-relaxed text-[#575A66] line-clamp-2'>{description}</p>}
+      <div className='mt-2 flex flex-wrap items-center gap-2 text-xs'>
+        <span className='inline-flex items-center rounded-full bg-[#F3F8FE] px-2 py-0.5 font-medium text-[#155CBA]'>
+          {e.industry}
+        </span>
+        {location !== '' && <span className='text-[#8A8D99]'>{location}</span>}
+        {source && (
+          <a href={source.url} target='_blank' rel='noopener noreferrer' className='font-medium text-[#1A73E8] hover:underline'>
+            {source.name}
+          </a>
+        )}
+      </div>
     </article>
   )
 }
@@ -227,15 +295,15 @@ const selectCls =
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label={title}>
-      <h2 className="text-sm font-semibold text-[#575A66]">{title}</h2>
+    <section className='rounded-2xl border border-[#E2E3E5] bg-white p-5' aria-label={title}>
+      <h2 className='text-sm font-semibold text-[#575A66]'>{title}</h2>
       {children}
     </section>
   )
 }
 
 function NoData() {
-  return <p className="mb-16 mt-16 text-center text-sm text-[#8A8D99]">No data</p>
+  return <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data</p>
 }
 
 export default function StoredSignalsDashboard({ result }: StoredSignalsDashboardProps) {
@@ -245,6 +313,9 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
   const [feedFamily, setFeedFamily] = useState<Family | null>(null)
   const [industryFilter, setIndustryFilter] = useState<string | null>(null)
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
+  const [sigType, setSigType] = useState<string>('all')
+  const [sigSeverity, setSigSeverity] = useState<string>('all')
+  const [sigFamily, setSigFamily] = useState<string>('all')
 
   const companyLookup = useMemo(() => {
     const map = new Map<string, StoredCompany>()
@@ -331,6 +402,36 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
     { icon: '🎨', label: 'Creative Hiring', value: enriched.filter((e) => isCreativeHiring(e.s)).length, accent: '#FF5252', spark: weeklySeries((e) => isCreativeHiring(e.s)) },
   ]
 
+  const weeklyChartData = useMemo(() => {
+    return weekKeys.map((wk) => {
+      const d = new Date(wk)
+      return {
+        week: wk,
+        label: Number.isNaN(d.getTime()) ? wk : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        count: enriched.filter((e) => e.weekKey === wk).length,
+      }
+    })
+  }, [weekKeys, enriched])
+
+  const typeChartData = useMemo(() => {
+    const map = new Map<string, number>()
+    enriched.forEach((e) => map.set(e.displayType, (map.get(e.displayType) ?? 0) + 1))
+    return Array.from(map.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [enriched])
+
+  const typeTotal = useMemo(() => typeChartData.reduce((acc, t) => acc + t.count, 0), [typeChartData])
+
+  const industryChartData = useMemo(() => {
+    const map = new Map<string, number>()
+    enriched.forEach((e) => map.set(e.industry, (map.get(e.industry) ?? 0) + 1))
+    return Array.from(map.entries())
+      .map(([industry, count]) => ({ industry, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8)
+  }, [enriched])
+
   const feed = useMemo(() => {
     const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000
     return enriched
@@ -342,155 +443,158 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
       .sort((a, b) => b.timestamp - a.timestamp)
   }, [enriched, feedType, feedWeek, feedFamily, industryFilter])
 
+  const companyRows = useMemo<CompanyRowData[]>(() => {
+    return (result.companies ?? [])
+      .filter((c) => (industryFilter === null ? true : industryOf(c) === industryFilter))
+      .map((c) => {
+        const key = c.company_key || c.company_id || c.company_name
+        const signals = enriched
+          .filter((e) => (c.company_id !== '' && e.s.company_id === c.company_id) || (c.company_key !== '' && e.s.company_key === c.company_key))
+          .sort((a, b) => b.timestamp - a.timestamp)
+        return {
+          key,
+          company: c,
+          signals,
+          latest: signals[0] ?? null,
+          techStack: extraList(c, ['tech_stack', 'techStack', 'technologies']),
+          keywords: extraList(c, ['keywords', 'tags', 'topics']),
+        }
+      })
+      .sort((a, b) => b.signals.length - a.signals.length)
+  }, [result.companies, enriched, industryFilter])
+
+  const familyChartData = useMemo(
+    () =>
+      FAMILIES.map((f) => ({
+        label: FAMILY_META[f].label,
+        count: enriched.filter((e) => familyOf(e) === f).length,
+        color: FAMILY_META[f].color,
+      })),
+    [enriched],
+  )
+
+  const severityChartData = useMemo(
+    () => SEVERITIES.map((sev) => ({ name: sev, value: severityCounts[sev], color: SEVERITY_COLORS[sev] })),
+    [severityCounts],
+  )
+
   const displayTypes = useMemo(
     () => Array.from(new Set(enriched.map((e) => e.displayType))).sort(),
-    [enriched]
+    [enriched],
   )
 
-  const industries = useMemo(() => {
-    const set = new Set<string>()
-    for (const c of result.companies ?? []) set.add(industryOf(c))
-    for (const e of enriched) set.add(e.industry)
-    return Array.from(set)
-      .filter((v) => v !== '')
-      .sort()
-  }, [result.companies, enriched])
+  const signalsFeed = useMemo(() => {
+    return enriched
+      .filter((e) => (sigType === 'all' ? true : e.displayType === sigType))
+      .filter((e) => (sigSeverity === 'all' ? true : e.severity === sigSeverity))
+      .filter((e) => (sigFamily === 'all' ? true : familyOf(e) === sigFamily))
+      .sort((a, b) => b.timestamp - a.timestamp)
+  }, [enriched, sigType, sigSeverity, sigFamily])
 
-  const companyRows = useMemo<CompanyRowData[]>(() => {
-    const map = new Map<string, CompanyRowData>()
-    for (const c of result.companies ?? []) {
-      const key = c.company_id || c.company_key || c.company_name
-      if (!key) continue
-      map.set(key, {
-        key,
-        company: c,
-        signals: [],
-        latest: null,
-        techStack: extraList(c, ['tech_stack', 'techStack', 'technologies']),
-        keywords: extraList(c, ['keywords', 'tags']),
-      })
-    }
-    for (const e of enriched) {
-      const key = e.s.company_id || e.s.company_key || e.s.company_name
-      if (!key) continue
-      let row = map.get(key)
-      if (!row) {
-        const synthetic: StoredCompany = {
-          company_id: e.s.company_id,
-          company_name: e.s.company_name,
-          company_key: e.s.company_key,
-          domain: '',
-          website: '',
-          industry: '',
-          hq: '',
-          total: 0,
-          by_family: { funding: 0, csuite: 0, product: 0, partnership: 0 },
-        }
-        row = { key, company: synthetic, signals: [], latest: null, techStack: [], keywords: [] }
-        map.set(key, row)
-      }
-      row.signals.push(e)
-      if (!row.latest || e.timestamp > row.latest.timestamp) row.latest = e
-    }
-    const rows = Array.from(map.values())
-    rows.forEach((r) => r.signals.sort((a, b) => b.timestamp - a.timestamp))
-    return rows.sort((a, b) => b.signals.length - a.signals.length)
-  }, [result.companies, enriched])
-
-  const recentSignals = useMemo(
-    () => [...enriched].sort((a, b) => b.timestamp - a.timestamp),
-    [enriched]
-  )
-
-  const glance = useMemo(() => {
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-    let last7 = 0
-    const companySet = new Set<string>()
-    for (const e of enriched) {
-      const key = e.s.company_key || e.s.company_id || e.s.company_name
-      if (key) companySet.add(key)
-      if (e.timestamp >= cutoff) last7 += 1
-    }
-    return { total: enriched.length, last7, companies: companySet.size }
-  }, [enriched])
-
-  const severityPieData = SEVERITIES.map((sv) => ({
-    name: sv,
-    value: severityCounts[sv],
-    color: SEVERITY_COLORS[sv],
-  }))
-  const severityTotal = severityPieData.reduce((acc, d) => acc + d.value, 0)
-
-  const typeBarData = useMemo(() => {
-    const counts = new Map<string, number>()
-    enriched.forEach((e) => counts.set(e.displayType, (counts.get(e.displayType) ?? 0) + 1))
-    return Array.from(counts.entries())
-      .map(([type, count]) => ({ name: `${type} · ${count}`, type, count, color: typeColor(type) }))
-      .sort((a, b) => b.count - a.count)
-  }, [enriched])
-
-  const weeklyTrend = useMemo(() => {
-    return weekKeys.map((wk) => {
-      const d = new Date(wk)
-      return {
-        week: wk,
-        label: Number.isNaN(d.getTime()) ? wk : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        count: enriched.filter((e) => e.weekKey === wk).length,
-      }
+  const topCompanyInsight = useMemo(() => {
+    const map = new Map<string, number>()
+    enriched.forEach((e) => {
+      const name = (e.s.company_name ?? '').trim()
+      if (name !== '') map.set(name, (map.get(name) ?? 0) + 1)
     })
-  }, [weekKeys, enriched])
+    const sorted = Array.from(map.entries()).sort((a, b) => b[1] - a[1])
+    return sorted[0] ?? null
+  }, [enriched])
 
-  const familyBarData = FAMILIES.map((f) => ({
-    family: f,
-    name: FAMILY_META[f].label,
-    count: enriched.filter((e) => familyOf(e) === f).length,
-    color: FAMILY_META[f].color,
-  }))
-
-  const topCompanies = useMemo(
-    () =>
-      companyRows
-        .filter((r) => r.signals.length > 0)
-        .slice(0, 10)
-        .map((r) => ({ name: r.company.company_name, count: r.signals.length })),
-    [companyRows]
-  )
+  const latestSignal = useMemo(() => {
+    const sorted = [...enriched].sort((a, b) => b.timestamp - a.timestamp)
+    return sorted[0] ?? null
+  }, [enriched])
 
   const highSignals = useMemo(
     () => enriched.filter((e) => e.severity === 'HIGH').sort((a, b) => b.timestamp - a.timestamp),
-    [enriched]
+    [enriched],
   )
 
-  const topCompanyRow = companyRows.find((r) => r.signals.length > 0) ?? null
-  const topHighRow =
-    [...companyRows].sort(
-      (a, b) =>
-        b.signals.filter((e) => e.severity === 'HIGH').length -
-        a.signals.filter((e) => e.severity === 'HIGH').length
-    )[0] ?? null
-  const topHighCount = topHighRow ? topHighRow.signals.filter((e) => e.severity === 'HIGH').length : 0
-  const topTypeEntry = typeBarData[0] ?? null
-  const latestSignal = recentSignals[0] ?? null
+  const hasFeedFilter = feedType !== null || feedWeek !== null || feedFamily !== null || industryFilter !== null
 
-  const insightTiles = [
+  const toggleWeek = (week: string) => setFeedWeek((prev) => (prev === week ? null : week))
+  const toggleType = (type: string) => setFeedType((prev) => (prev === type ? null : type))
+  const toggleIndustry = (industry: string) => setIndustryFilter((prev) => (prev === industry ? null : industry))
+  const toggleCompany = (key: string) => setExpandedCompany((prev) => (prev === key ? null : key))
+
+  const clearFeedFilters = () => {
+    setFeedType(null)
+    setFeedWeek(null)
+    setFeedFamily(null)
+    setIndustryFilter(null)
+  }
+
+  const clearSignalFilters = () => {
+    setSigType('all')
+    setSigSeverity('all')
+    setSigFamily('all')
+  }
+
+  const handleWeeklyClick = (state: unknown) => {
+    const label = activeLabelOf(state)
+    if (!label) return
+    const point = weeklyChartData.find((w) => w.label === label)
+    if (!point) return
+    toggleWeek(point.week)
+  }
+
+  const handleIndustryClick = (state: unknown) => {
+    const label = activeLabelOf(state)
+    if (!label) return
+    toggleIndustry(label)
+  }
+
+  const handleTypeSliceClick = (entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return
+    const rec = entry as Record<string, unknown>
+    let t: unknown = rec['type']
+    if (typeof t !== 'string') {
+      const payload = rec['payload']
+      if (typeof payload === 'object' && payload !== null) {
+        t = (payload as Record<string, unknown>)['type']
+      }
+    }
+    if (typeof t === 'string' && t !== '') toggleType(t)
+  }
+
+  const handleCardClick = (label: string) => {
+    const mapped = CARD_TYPE_FILTER[label]
+    if (mapped !== undefined) {
+      setFeedType((prev) => (prev === mapped ? null : mapped))
+      setFeedFamily(null)
+      setTab('overview')
+      return
+    }
+    if (label === 'C-Suite Changes') {
+      setFeedFamily((prev) => (prev === 'csuite' ? null : 'csuite'))
+      setFeedType(null)
+      setTab('overview')
+      return
+    }
+    clearFeedFilters()
+  }
+
+  const selectedWeekLabel =
+    feedWeek !== null ? (weeklyChartData.find((w) => w.week === feedWeek)?.label ?? feedWeek) : ''
+
+  const insightTiles: { label: string; value: string; sub: string; accent: string }[] = [
     {
       label: 'Most Signals',
-      value: topCompanyRow ? topCompanyRow.company.company_name : '—',
-      sub: topCompanyRow
-        ? `${topCompanyRow.signals.length} total signal${topCompanyRow.signals.length === 1 ? '' : 's'}`
-        : 'No companies yet',
+      value: topCompanyInsight ? topCompanyInsight[0] : '—',
+      sub: topCompanyInsight ? `${formatNumber(topCompanyInsight[1])} total signal${topCompanyInsight[1] === 1 ? '' : 's'}` : 'No companies yet',
       accent: '#1A73E8',
     },
     {
-      label: 'Most High Alerts',
-      value: topHighRow && topHighCount > 0 ? topHighRow.company.company_name : '—',
-      sub: topHighCount > 0 ? `${topHighCount} high-severity` : 'No high-severity signals',
+      label: 'High Severity',
+      value: formatNumber(severityCounts.HIGH),
+      sub: 'signals marked HIGH',
       accent: '#F31A1A',
     },
     {
       label: 'Most Common Type',
-      value: topTypeEntry ? topTypeEntry.type : '—',
-      sub: topTypeEntry ? `${topTypeEntry.count} occurrence${topTypeEntry.count === 1 ? '' : 's'}` : 'No signal types yet',
+      value: typeChartData[0]?.type ?? '—',
+      sub: typeChartData[0] ? `${formatNumber(typeChartData[0].count)} occurrence${typeChartData[0].count === 1 ? '' : 's'}` : 'No signal types yet',
       accent: '#B364D7',
     },
     {
@@ -501,42 +605,20 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
     },
   ]
 
-  const insightGroups = FAMILIES.map((f) => ({
-    family: f,
-    items: highSignals.filter((e) => familyOf(e) === f),
-  })).filter((g) => g.items.length > 0)
-
-  const handleCardClick = (label: string) => {
-    const type = CARD_TYPE_FILTER[label]
-    if (label === 'C-Suite Changes') {
-      setFeedFamily('csuite')
-      setFeedType(null)
-    } else if (type) {
-      setFeedType(type)
-      setFeedFamily(null)
-    } else {
-      setFeedType(null)
-      setFeedFamily(null)
-    }
-    setFeedWeek(null)
-    setIndustryFilter(null)
-    setTab('signals')
-  }
-
-  const clearFeedFilters = () => {
-    setFeedType(null)
-    setFeedWeek(null)
-    setFeedFamily(null)
-    setIndustryFilter(null)
-  }
-
   return (
-    <div>
+    <div className='bg-[#F7F8F9]'>
       <TabBar active={tab} onChange={setTab} />
-      <main className="mx-auto max-w-7xl px-4 py-6" role="tabpanel" aria-label={`${tab} panel`}>
+      <main className='mx-auto max-w-7xl px-4 py-6' role='tabpanel' aria-label={`${tab} panel`}>
         {tab === 'overview' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className='space-y-6'>
+            {result.unmatched_inputs.length > 0 && (
+              <div className='rounded-xl border border-[#FDCDB5] bg-[#FFF9F5] px-4 py-3 text-xs text-[#974D29]'>
+                {result.unmatched_inputs.length} input compan{result.unmatched_inputs.length === 1 ? 'y' : 'ies'} could not be matched:{' '}
+                {result.unmatched_inputs.slice(0, 5).join(', ')}
+                {result.unmatched_inputs.length > 5 ? '…' : ''}
+              </div>
+            )}
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4'>
               {cards.map((c) => (
                 <KpiCard
                   key={c.label}
@@ -550,482 +632,451 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                 />
               ))}
             </div>
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Recent signals">
-              <h2 className="text-sm font-semibold text-[#575A66]">Recent Signals</h2>
-              {recentSignals.length === 0 ? (
-                <NoData />
-              ) : (
-                <div className="mt-3 max-h-96 space-y-3 overflow-y-auto pr-1">
-                  {recentSignals.map((e, i) => (
-                    <SignalRow key={`${e.s.id}-recent-${i}`} e={e} />
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-
-        {tab === 'companies' && (
-          <div className="rounded-2xl border border-[#E2E3E5] bg-white">
-            <div className="max-h-[70vh] overflow-auto rounded-2xl">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead>
-                  <tr>
-                    {['Company', 'Industry', 'Website', 'HQ', 'Signals', 'High', 'Latest'].map((h) => (
-                      <th
-                        key={h}
-                        className="sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {companyRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-sm text-[#8A8D99]">
-                        No companies yet. Import a company list to get started.
-                      </td>
-                    </tr>
-                  ) : (
-                    companyRows.map((row) => {
-                      const expanded = expandedCompany === row.key
-                      const highCount = row.signals.filter((e) => e.severity === 'HIGH').length
-                      return (
-                        <Fragment key={row.key}>
-                          <tr
-                            tabIndex={0}
-                            aria-expanded={expanded}
-                            onClick={() => setExpandedCompany(expanded ? null : row.key)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                setExpandedCompany(expanded ? null : row.key)
-                              }
-                            }}
-                            className="cursor-pointer border-b border-[#F0F1F3] transition-colors last:border-b-0 hover:bg-[#F7F8F9] focus:bg-[#F7F8F9] focus:outline-none"
-                          >
-                            <td className="px-4 py-3 font-medium text-[#2C2D33]">
-                              <span className="inline-flex items-center gap-2">
-                                <span
-                                  aria-hidden="true"
-                                  className={`inline-block text-[10px] text-[#8A8D99] transition-transform duration-200 ${
-                                    expanded ? 'rotate-90' : ''
-                                  }`}
-                                >
-                                  ▶
-                                </span>
-                                {row.company.company_name}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-[#575A66]">{industryOf(row.company)}</td>
-                            <td className="px-4 py-3 text-[#575A66]">{extraField(row.company, ['website', 'domain'])}</td>
-                            <td className="px-4 py-3 text-[#575A66]">{extraField(row.company, ['hq'])}</td>
-                            <td className="px-4 py-3 text-[#575A66]">{formatNumber(row.signals.length)}</td>
-                            <td className="px-4 py-3 text-[#575A66]">{highCount}</td>
-                            <td className="px-4 py-3 text-[#8A8D99]">
-                              {row.latest ? relativeTime(row.latest.dateIso) : '—'}
-                            </td>
-                          </tr>
-                          {expanded && (
-                            <tr className="border-b border-[#F0F1F3] last:border-b-0">
-                              <td colSpan={7} className="bg-[#F7F8F9] px-6 py-5">
-                                {(row.techStack.length > 0 || row.keywords.length > 0) && (
-                                  <div className="mb-4 flex flex-wrap gap-2">
-                                    {row.techStack.map((t) => (
-                                      <span
-                                        key={`tech-${t}`}
-                                        className="rounded-full border border-[#E2E3E5] bg-white px-2 py-0.5 text-[11px] text-[#575A66]"
-                                      >
-                                        {t}
-                                      </span>
-                                    ))}
-                                    {row.keywords.map((k) => (
-                                      <span
-                                        key={`kw-${k}`}
-                                        className="rounded-full border border-[#E2E3E5] bg-white px-2 py-0.5 text-[11px] text-[#575A66]"
-                                      >
-                                        {k}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                                {row.signals.length === 0 ? (
-                                  <p className="text-xs text-[#8A8D99]">No signals recorded for this company.</p>
-                                ) : (
-                                  <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
-                                    {row.signals.map((e, i) => (
-                                      <SignalRow key={`${e.s.id}-company-${i}`} e={e} />
-                                    ))}
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {tab === 'signals' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <ChartCard title="⚡ Severity mix">
-                {severityTotal === 0 ? (
+            <div className='grid grid-cols-1 gap-4 lg:grid-cols-3'>
+              <ChartCard title='Weekly Signal Trend (click point to filter feed)'>
+                {enriched.length === 0 || weeklyChartData.length === 0 ? (
                   <NoData />
                 ) : (
                   <>
-                    <div className="mt-2 h-44">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className='mt-2 h-56 cursor-pointer'>
+                      <ResponsiveContainer width='100%' height='100%'>
+                        <BarChart data={weeklyChartData} margin={{ top: 10, right: 12, bottom: 0, left: -8 }} onClick={handleWeeklyClick}>
+                          <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' />
+                          <XAxis dataKey='label' stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 11 }} />
+                          <YAxis allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 11 }} />
+                          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
+                          <Bar dataKey='count' name='Signals' radius={[4, 4, 0, 0]}>
+                            {weeklyChartData.map((w) => (
+                              <Cell key={w.week} fill={feedWeek === null || feedWeek === w.week ? '#1A73E8' : '#D1E3FA'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className='mt-2 text-xs text-[#8A8D99]'>Click a bar to filter the Recent Signals feed by that week.</p>
+                  </>
+                )}
+              </ChartCard>
+              <ChartCard title='Signal Type Breakdown (click to filter feed)'>
+                {typeTotal === 0 ? (
+                  <NoData />
+                ) : (
+                  <>
+                    <div className='mt-2 h-48'>
+                      <ResponsiveContainer width='100%' height='100%'>
                         <PieChart>
+                          <Tooltip contentStyle={tooltipStyle} />
                           <Pie
-                            data={severityPieData}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={40}
-                            outerRadius={65}
-                            paddingAngle={3}
-                            stroke="none"
+                            data={typeChartData}
+                            dataKey='count'
+                            nameKey='type'
+                            innerRadius={42}
+                            outerRadius={72}
+                            paddingAngle={2}
+                            stroke='#FFFFFF'
+                            cursor='pointer'
+                            onClick={handleTypeSliceClick}
                           >
-                            {severityPieData.map((d) => (
-                              <Cell key={d.name} fill={d.color} />
+                            {typeChartData.map((t) => (
+                              <Cell key={t.type} fill={feedType === null || feedType === t.type ? typeColor(t.type) : '#E2E3E5'} />
                             ))}
                           </Pie>
-                          <Tooltip contentStyle={tooltipStyle} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <ul className="mt-3 flex flex-wrap gap-4" aria-label="Severity legend">
-                      {severityPieData.map((d) => (
-                        <li key={d.name} className="flex items-center gap-2 text-xs text-[#575A66]">
-                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} aria-hidden="true" />
-                          {d.name} · <span className="font-medium text-[#2C2D33]">{d.value}</span>
+                    <ul className='mt-2 space-y-1' aria-label='Signal type legend'>
+                      {typeChartData.slice(0, 6).map((t) => (
+                        <li key={t.type}>
+                          <button
+                            type='button'
+                            onClick={() => toggleType(t.type)}
+                            className='flex w-full items-center gap-2 text-xs text-[#575A66] transition-colors hover:text-[#1A73E8]'
+                          >
+                            <span className='h-2 w-2 shrink-0 rounded-full' style={{ backgroundColor: typeColor(t.type) }} aria-hidden='true' />
+                            <span className='truncate'>{t.type}</span>
+                            <span className='ml-auto shrink-0 text-[#8A8D99]'>{t.count}</span>
+                          </button>
                         </li>
                       ))}
                     </ul>
                   </>
                 )}
               </ChartCard>
-
-              <ChartCard title="📊 Signal types">
-                {typeBarData.length === 0 ? (
+              <ChartCard title='Top Industries by Signal Count (click to filter table)'>
+                {industryChartData.length === 0 ? (
                   <NoData />
                 ) : (
-                  <div className="mt-2 h-56">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={typeBarData} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-                        <XAxis type="number" allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#8A8D99', fontSize: 12 }} />
-                        <YAxis
-                          type="category"
-                          dataKey="name"
-                          width={150}
-                          stroke="#A7AAB2"
-                          tick={{ fill: '#575A66', fontSize: 11 }}
-                        />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F7F8F9' }} />
-                        <Bar dataKey="count" name="Signals" radius={[0, 6, 6, 0]} barSize={16}>
-                          {typeBarData.map((d) => (
-                            <Cell key={d.type} fill={d.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <>
+                    <div className='mt-2 h-56 cursor-pointer'>
+                      <ResponsiveContainer width='100%' height='100%'>
+                        <BarChart
+                          data={industryChartData}
+                          layout='vertical'
+                          margin={{ top: 10, right: 16, bottom: 0, left: 0 }}
+                          onClick={handleIndustryClick}
+                        >
+                          <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' horizontal={false} />
+                          <XAxis type='number' allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 11 }} />
+                          <YAxis type='category' dataKey='industry' width={110} stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 10 }} />
+                          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(0,167,214,0.06)' }} />
+                          <Bar dataKey='count' name='Signals' radius={[0, 4, 4, 0]}>
+                            {industryChartData.map((d) => (
+                              <Cell
+                                key={d.industry}
+                                fill={industryFilter === null || industryFilter === d.industry ? '#00A7D6' : '#CCEDF7'}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className='mt-2 text-xs text-[#8A8D99]'>Click a bar to filter the Companies table by that industry.</p>
+                  </>
                 )}
               </ChartCard>
-
-              <ChartCard title="📡 At a glance">
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  <div>
-                    <div className="text-3xl font-semibold text-[#2C2D33]">{formatNumber(glance.total)}</div>
-                    <div className="mt-1 text-[11px] font-medium uppercase tracking-wider text-[#8A8D99]">total signals</div>
-                  </div>
-                  <div>
-                    <div className="text-3xl font-semibold text-[#2C2D33]">{formatNumber(glance.last7)}</div>
-                    <div className="mt-1 text-[11px] font-medium uppercase tracking-wider text-[#8A8D99]">in the last 7 days</div>
-                  </div>
-                  <div>
-                    <div className="text-3xl font-semibold text-[#2C2D33]">{formatNumber(glance.companies)}</div>
-                    <div className="mt-1 text-[11px] font-medium uppercase tracking-wider text-[#8A8D99]">
-                      companies with signals
-                    </div>
-                  </div>
-                </div>
-              </ChartCard>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4">
-              <select
-                aria-label="Filter by signal type"
-                className={selectCls}
-                value={feedType ?? ''}
-                onChange={(e) => setFeedType(e.target.value === '' ? null : e.target.value)}
-              >
-                <option value="">All types</option>
+            <section className='rounded-2xl border border-[#E2E3E5] bg-white p-5' aria-label='Recent signals'>
+              <div className='flex flex-wrap items-center gap-2'>
+                <h2 className='text-sm font-semibold text-[#575A66]'>Recent Signals</h2>
+                <span className='text-xs text-[#8A8D99]'>{formatNumber(feed.length)} in the last 90 days</span>
+                {hasFeedFilter && (
+                  <button
+                    type='button'
+                    onClick={clearFeedFilters}
+                    className='ml-auto rounded-full border border-[#E2E3E5] px-3 py-1 text-xs font-medium text-[#575A66] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]'
+                  >
+                    Clear filters ✕
+                  </button>
+                )}
+              </div>
+              {hasFeedFilter && (
+                <div className='mt-2 flex flex-wrap items-center gap-2'>
+                  {feedWeek !== null && (
+                    <span className='rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-medium text-[#155CBA]'>
+                      Week of {selectedWeekLabel}
+                    </span>
+                  )}
+                  {feedType !== null && (
+                    <span className='rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-medium text-[#155CBA]'>{feedType}</span>
+                  )}
+                  {feedFamily !== null && (
+                    <span className='rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-medium text-[#155CBA]'>
+                      {FAMILY_META[feedFamily].label}
+                    </span>
+                  )}
+                  {industryFilter !== null && (
+                    <span className='rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-medium text-[#155CBA]'>{industryFilter}</span>
+                  )}
+                </div>
+              )}
+              <div className='mt-3 max-h-[480px] space-y-3 overflow-y-auto pr-1'>
+                {feed.length === 0 ? (
+                  <p className='py-10 text-center text-sm text-[#8A8D99]'>No signals match the current filters.</p>
+                ) : (
+                  feed.map((e, i) => (
+                    <OverviewSignalRow
+                      key={`${e.s.id}-${i}`}
+                      e={e}
+                      company={companyLookup.get(e.s.company_id) ?? companyLookup.get(e.s.company_key)}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+        {tab === 'companies' && (
+          <div className='space-y-4'>
+            <div className='flex flex-wrap items-center gap-2'>
+              <h2 className='text-sm font-semibold text-[#575A66]'>Companies ({formatNumber(companyRows.length)})</h2>
+              {industryFilter !== null && (
+                <button
+                  type='button'
+                  onClick={() => setIndustryFilter(null)}
+                  className='rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-3 py-1 text-xs font-medium text-[#155CBA] transition-colors hover:border-[#1A73E8]'
+                >
+                  Industry: {industryFilter} ✕
+                </button>
+              )}
+            </div>
+            <div className='rounded-2xl border border-[#E2E3E5] bg-white'>
+              <div className='max-h-[70vh] overflow-auto rounded-2xl'>
+                <table className='w-full min-w-[760px] text-sm'>
+                  <thead>
+                    <tr>
+                      {['Company', 'Industry', 'HQ', 'Signals', 'Latest'].map((h, hi) => (
+                        <th
+                          key={h}
+                          className={`sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99] ${hi >= 3 ? 'text-right' : 'text-left'}`}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companyRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className='px-4 py-12 text-center text-sm text-[#8A8D99]'>
+                          No companies match the current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      companyRows.map((row) => {
+                        const expanded = expandedCompany === row.key
+                        return (
+                          <Fragment key={row.key}>
+                            <tr
+                              tabIndex={0}
+                              aria-expanded={expanded}
+                              onClick={() => toggleCompany(row.key)}
+                              onKeyDown={(ev) => {
+                                if (ev.key === 'Enter' || ev.key === ' ') toggleCompany(row.key)
+                              }}
+                              className='cursor-pointer border-b border-[#F1F2F3] transition-colors last:border-b-0 hover:bg-[#F7F8F9] focus:bg-[#F7F8F9] focus:outline-none'
+                            >
+                              <td className='px-4 py-3 font-medium text-[#2C2D33]'>
+                                <span className='inline-flex items-center gap-2'>
+                                  <span
+                                    aria-hidden='true'
+                                    className={`inline-block text-[10px] text-[#8A8D99] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+                                  >
+                                    ▶
+                                  </span>
+                                  {row.company.company_name}
+                                </span>
+                              </td>
+                              <td className='px-4 py-3 text-[#575A66]'>{industryOf(row.company)}</td>
+                              <td className='px-4 py-3 text-[#575A66]'>{extraField(row.company, ['hq', 'location', 'headquarters'])}</td>
+                              <td className='px-4 py-3 text-right text-[#2C2D33]'>{formatNumber(row.signals.length)}</td>
+                              <td className='px-4 py-3 text-right text-[#8A8D99]'>{row.latest ? relativeTime(row.latest.dateIso) : '—'}</td>
+                            </tr>
+                            {expanded && (
+                              <tr className='border-b border-[#F1F2F3] last:border-b-0'>
+                                <td colSpan={5} className='bg-[#F7F8F9] px-6 py-5'>
+                                  <div className='space-y-4'>
+                                    {(row.techStack.length > 0 || row.keywords.length > 0) && (
+                                      <div className='flex flex-wrap gap-2'>
+                                        {row.techStack.map((t) => (
+                                          <span key={`tech-${t}`} className='rounded-full border border-[#CCEDF7] bg-[#F2FBFD] px-2 py-0.5 text-[11px] font-medium text-[#0086AB]'>
+                                            {t}
+                                          </span>
+                                        ))}
+                                        {row.keywords.map((k) => (
+                                          <span key={`kw-${k}`} className='rounded-full border border-[#E2E3E5] bg-white px-2 py-0.5 text-[11px] font-medium text-[#575A66]'>
+                                            {k}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {row.signals.length === 0 ? (
+                                      <p className='text-xs text-[#8A8D99]'>No signals recorded for this company.</p>
+                                    ) : (
+                                      <div className='space-y-3'>
+                                        {row.signals.map((e, i) => (
+                                          <SignalRow key={`${e.s.id}-${i}`} e={e} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+        {tab === 'signals' && (
+          <div className='space-y-4'>
+            <div className='flex flex-wrap items-end gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4'>
+              <select aria-label='Filter by signal type' className={selectCls} value={sigType} onChange={(e) => setSigType(e.target.value)}>
+                <option value='all'>All types</option>
                 {displayTypes.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
                 ))}
               </select>
-              <select
-                aria-label="Filter by family"
-                className={selectCls}
-                value={feedFamily ?? ''}
-                onChange={(e) => setFeedFamily(e.target.value === '' ? null : (e.target.value as Family))}
-              >
-                <option value="">All families</option>
+              <select aria-label='Filter by severity' className={selectCls} value={sigSeverity} onChange={(e) => setSigSeverity(e.target.value)}>
+                <option value='all'>All severities</option>
+                {SEVERITIES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <select aria-label='Filter by family' className={selectCls} value={sigFamily} onChange={(e) => setSigFamily(e.target.value)}>
+                <option value='all'>All families</option>
                 {FAMILIES.map((f) => (
                   <option key={f} value={f}>
                     {FAMILY_META[f].label}
                   </option>
                 ))}
               </select>
-              <select
-                aria-label="Filter by industry"
-                className={selectCls}
-                value={industryFilter ?? ''}
-                onChange={(e) => setIndustryFilter(e.target.value === '' ? null : e.target.value)}
-              >
-                <option value="">All industries</option>
-                {industries.map((ind) => (
-                  <option key={ind} value={ind}>
-                    {ind}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="Filter by week"
-                className={selectCls}
-                value={feedWeek ?? ''}
-                onChange={(e) => setFeedWeek(e.target.value === '' ? null : e.target.value)}
-              >
-                <option value="">All weeks</option>
-                {weekKeys.map((wk) => (
-                  <option key={wk} value={wk}>
-                    Week of {formatDate(wk)}
-                  </option>
-                ))}
-              </select>
               <button
-                type="button"
-                onClick={clearFeedFilters}
-                className="rounded-lg border border-[#E2E3E5] px-3 py-1.5 text-sm text-[#575A66] transition-colors hover:border-[#F31A1A]/50 hover:text-[#2C2D33]"
+                type='button'
+                onClick={clearSignalFilters}
+                className='rounded-lg border border-[#E2E3E5] px-3 py-1.5 text-sm text-[#575A66] transition-colors hover:border-[#F31A1A]/50 hover:text-[#2C2D33]'
               >
                 Clear
               </button>
-              <span className="ml-auto text-xs text-[#8A8D99]">
-                {formatNumber(feed.length)} of {formatNumber(enriched.length)} signal{enriched.length === 1 ? '' : 's'}
+              <span className='ml-auto text-xs text-[#8A8D99]'>
+                {formatNumber(signalsFeed.length)} of {formatNumber(enriched.length)} signal{enriched.length === 1 ? '' : 's'}
               </span>
             </div>
-
-            {feed.length === 0 ? (
-              <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
-                <p className="text-3xl" aria-hidden="true">🔍</p>
-                <p className="mt-3 text-sm font-medium text-[#2C2D33]">No signals match your filters</p>
-                <p className="mt-1 text-xs text-[#8A8D99]">Try clearing filters or importing more companies.</p>
+            {signalsFeed.length === 0 ? (
+              <div className='rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center'>
+                <p className='text-3xl' aria-hidden='true'>🔍</p>
+                <p className='mt-3 text-sm font-medium text-[#2C2D33]'>No signals match your filters</p>
+                <p className='mt-1 text-xs text-[#8A8D99]'>Try clearing the filters above.</p>
               </div>
             ) : (
-              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signal feed">
-                <h2 className="text-sm font-semibold text-[#575A66]">Signal Feed</h2>
-                <div className="mt-3 max-h-96 space-y-3 overflow-y-auto pr-1">
-                  {feed.map((e, i) => (
-                    <SignalRow key={`${e.s.id}-feed-${i}`} e={e} />
-                  ))}
-                </div>
-              </section>
+              <div className='space-y-3'>
+                {signalsFeed.map((e, i) => (
+                  <SignalRow key={`${e.s.id}-${i}`} e={e} />
+                ))}
+              </div>
             )}
           </div>
         )}
-
         {tab === 'trends' && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ChartCard title="Weekly Signal Trend">
-              {weeklyTrend.length === 0 ? (
+          <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+            <ChartCard title='Weekly Signal Trend'>
+              {enriched.length === 0 || weeklyChartData.length === 0 ? (
                 <NoData />
               ) : (
-                <>
-                  <div className="mt-2 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={weeklyTrend}
-                        margin={{ top: 10, right: 16, bottom: 0, left: 0 }}
-                        onClick={(state) => {
-                          const label = activeLabelOf(state)
-                          if (label === null) return
-                          const point = weeklyTrend.find((p) => p.label === label)
-                          if (!point) return
-                          setFeedWeek(point.week)
-                          setFeedType(null)
-                          setFeedFamily(null)
-                          setTab('signals')
-                        }}
-                      >
-                        <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
-                        <XAxis dataKey="label" stroke="#A7AAB2" tick={{ fill: '#8A8D99', fontSize: 12 }} />
-                        <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#8A8D99', fontSize: 12 }} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F7F8F9' }} />
-                        <Bar dataKey="count" name="Signals" fill="#1A73E8" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <p className="mt-2 text-xs text-[#8A8D99]">Click a bar to see that week's signals in the feed.</p>
-                </>
-              )}
-            </ChartCard>
-
-            <ChartCard title="Signals by Category">
-              {enriched.length === 0 ? (
-                <NoData />
-              ) : (
-                <>
-                  <div className="mt-2 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={familyBarData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-                        <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
-                        <XAxis dataKey="name" stroke="#A7AAB2" tick={{ fill: '#8A8D99', fontSize: 12 }} />
-                        <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#8A8D99', fontSize: 12 }} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F7F8F9' }} />
-                        <Bar dataKey="count" name="Signals" radius={[4, 4, 0, 0]}>
-                          {familyBarData.map((d) => (
-                            <Cell
-                              key={d.family}
-                              fill={d.color}
-                              cursor="pointer"
-                              onClick={() => {
-                                setFeedFamily(d.family)
-                                setFeedType(null)
-                                setFeedWeek(null)
-                                setTab('signals')
-                              }}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <p className="mt-2 text-xs text-[#8A8D99]">Click a bar to filter the signal feed by that category.</p>
-                </>
-              )}
-            </ChartCard>
-
-            <ChartCard title="Top 10 Companies by Signal Count">
-              {topCompanies.length === 0 ? (
-                <NoData />
-              ) : (
-                <div className="mt-2 h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topCompanies} layout="vertical" margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
-                      <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#8A8D99', fontSize: 12 }} />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={140}
-                        stroke="#A7AAB2"
-                        tick={{ fill: '#575A66', fontSize: 11 }}
-                      />
-                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F7F8F9' }} />
-                      <Bar dataKey="count" name="Signals" fill="#00A7D6" radius={[0, 4, 4, 0]} />
+                <div className='mt-2 h-64'>
+                  <ResponsiveContainer width='100%' height='100%'>
+                    <BarChart data={weeklyChartData} margin={{ top: 10, right: 16, bottom: 0, left: -8 }}>
+                      <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' />
+                      <XAxis dataKey='label' stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 11 }} />
+                      <YAxis allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 11 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
+                      <Bar dataKey='count' name='Signals' fill='#1A73E8' radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </ChartCard>
-
-            <ChartCard title="Signal Type Breakdown">
-              {typeBarData.length === 0 ? (
+            <ChartCard title='Signals by Family'>
+              {enriched.length === 0 ? (
                 <NoData />
               ) : (
-                <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="h-64 w-full sm:w-1/2">
-                    <ResponsiveContainer width="100%" height="100%">
+                <div className='mt-2 h-64'>
+                  <ResponsiveContainer width='100%' height='100%'>
+                    <BarChart data={familyChartData} margin={{ top: 10, right: 16, bottom: 0, left: -8 }}>
+                      <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' />
+                      <XAxis dataKey='label' stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 11 }} />
+                      <YAxis allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#8A8D99', fontSize: 11 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(26,115,232,0.06)' }} />
+                      <Bar dataKey='count' name='Signals' radius={[4, 4, 0, 0]}>
+                        {familyChartData.map((f) => (
+                          <Cell key={f.label} fill={f.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+            <ChartCard title='Signal Type Breakdown'>
+              {typeTotal === 0 ? (
+                <NoData />
+              ) : (
+                <div className='mt-2 flex flex-col gap-4 sm:flex-row sm:items-center'>
+                  <div className='h-64 w-full sm:w-1/2'>
+                    <ResponsiveContainer width='100%' height='100%'>
                       <PieChart>
                         <Tooltip contentStyle={tooltipStyle} />
-                        <Pie
-                          data={typeBarData}
-                          dataKey="count"
-                          nameKey="type"
-                          innerRadius={50}
-                          outerRadius={85}
-                          paddingAngle={2}
-                          stroke="#FFFFFF"
-                        >
-                          {typeBarData.map((t) => (
-                            <Cell key={t.type} fill={t.color} />
+                        <Pie data={typeChartData} dataKey='count' nameKey='type' innerRadius={50} outerRadius={85} paddingAngle={2} stroke='#FFFFFF'>
+                          {typeChartData.map((t) => (
+                            <Cell key={t.type} fill={typeColor(t.type)} />
                           ))}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <ul className="w-full space-y-1.5 sm:w-1/2" aria-label="Signal type legend">
-                    {typeBarData.map((t) => (
-                      <li key={t.type} className="flex items-center gap-2 text-xs text-[#575A66]">
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: t.color }} aria-hidden="true" />
-                        <span className="truncate">{t.type}</span>
-                        <span className="ml-auto shrink-0 text-[#8A8D99]">{t.count}</span>
-                      </li>
-                    ))}
+                  <ul className='w-full space-y-1.5 sm:w-1/2' aria-label='Signal type legend'>
+                    {typeChartData.map((t) => {
+                      const pct = typeTotal === 0 ? '0.0' : ((t.count / typeTotal) * 100).toFixed(1)
+                      return (
+                        <li key={t.type} className='flex items-center gap-2 text-xs text-[#575A66]'>
+                          <span className='h-2 w-2 shrink-0 rounded-full' style={{ backgroundColor: typeColor(t.type) }} aria-hidden='true' />
+                          <span className='truncate'>{t.type}</span>
+                          <span className='ml-auto shrink-0 text-[#8A8D99]'>
+                            {t.count} · {pct}%
+                          </span>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </div>
               )}
             </ChartCard>
+            <ChartCard title='Severity Mix'>
+              {enriched.length === 0 ? (
+                <NoData />
+              ) : (
+                <>
+                  <div className='mt-2 h-64'>
+                    <ResponsiveContainer width='100%' height='100%'>
+                      <PieChart>
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Pie data={severityChartData} dataKey='value' nameKey='name' innerRadius={50} outerRadius={85} paddingAngle={3} stroke='#FFFFFF'>
+                          {severityChartData.map((d) => (
+                            <Cell key={d.name} fill={d.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className='mt-3 flex flex-wrap gap-4'>
+                    {severityChartData.map((d) => (
+                      <li key={d.name} className='flex items-center gap-2 text-xs text-[#575A66]'>
+                        <span className='h-2.5 w-2.5 rounded-full' style={{ backgroundColor: d.color }} aria-hidden='true' />
+                        {d.name} · <span className='text-[#2C2D33]'>{d.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </ChartCard>
           </div>
         )}
-
         {tab === 'insights' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className='space-y-6'>
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
               {insightTiles.map((t) => (
-                <div key={t.label} className="rounded-2xl border border-[#E2E3E5] bg-white p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]">{t.label}</p>
-                  <p className="mt-1 truncate text-xl font-semibold" style={{ color: t.accent }}>
+                <div key={t.label} className='rounded-2xl border border-[#E2E3E5] bg-white p-4'>
+                  <p className='text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]'>{t.label}</p>
+                  <p className='mt-1 truncate text-xl font-semibold' style={{ color: t.accent }}>
                     {t.value}
                   </p>
-                  <p className="mt-0.5 text-xs text-[#8A8D99]">{t.sub}</p>
+                  <p className='mt-0.5 text-xs text-[#575A66]'>{t.sub}</p>
                 </div>
               ))}
             </div>
-            {insightGroups.length === 0 ? (
-              <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
-                <p className="text-3xl" aria-hidden="true">💡</p>
-                <p className="mt-3 text-sm font-medium text-[#2C2D33]">No high-severity insights yet</p>
-                <p className="mt-1 text-xs text-[#8A8D99]">
-                  Insights list HIGH-severity signals only. Check the Signals tab for all activity.
-                </p>
+            {highSignals.length === 0 ? (
+              <div className='rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center'>
+                <p className='text-3xl' aria-hidden='true'>💡</p>
+                <p className='mt-3 text-sm font-medium text-[#2C2D33]'>No high-severity insights yet</p>
+                <p className='mt-1 text-xs text-[#8A8D99]'>Insights list HIGH-severity signals only. Check the Signals tab for the full feed.</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {insightGroups.map((g) => (
-                  <section key={g.family} aria-label={`${FAMILY_META[g.family].label} insights`}>
-                    <div className="mb-3 flex items-center gap-2">
-                      <span
-                        className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium"
-                        style={{
-                          color: FAMILY_META[g.family].color,
-                          borderColor: `${FAMILY_META[g.family].color}55`,
-                          backgroundColor: `${FAMILY_META[g.family].color}14`,
-                        }}
-                      >
-                        {FAMILY_META[g.family].label}
-                      </span>
-                      <span className="text-xs text-[#8A8D99]">
-                        {g.items.length} insight{g.items.length === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      {g.items.map((e, i) => (
-                        <SignalRow key={`${e.s.id}-insight-${i}`} e={e} />
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
+              <section aria-label='High severity insights'>
+                <h2 className='text-sm font-semibold text-[#575A66]'>High Severity Signals ({formatNumber(highSignals.length)})</h2>
+                <div className='mt-3 space-y-3'>
+                  {highSignals.map((e, i) => (
+                    <SignalRow key={`${e.s.id}-${i}`} e={e} />
+                  ))}
+                </div>
+              </section>
             )}
           </div>
         )}
