@@ -8,7 +8,7 @@ import { getArenaEmailId } from '@/lib/arena-email'
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 
 export const metadata: Metadata = {
-  title: 'Account Signal Tracker',
+  title: 'ABM Signal Tracker',
   description:
     'Upload a company list (CSV or XLSX) and track ABM account signals across funding, C-suite, product and partnership activity.',
 }

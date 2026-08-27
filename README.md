@@ -1,15 +1,13 @@
 # abm-signal-dashboard
 
-Surgical data-binding fix: the stored-signals dashboard now reads authoritative totals from the API's `dashboard` object (with documented fallback chains) instead of deriving counts from the paginated signals page, and empty fields render an em dash instead of the literal 'Unknown'. VERIFICATION: (1) Companies KPI reads dashboard.total_companies -> total_companies -> dashboard.companies_total -> dashboard.companies_tracked (displays 23, never company_count/returned/companies.length). (2) Total signals reads dashboard.total_signal_rows -> total_signal_rows -> total (75); High/Medium/Low read dashboard.high_alerts/medium_alerts/low_alerts -> counts_by_alert (25/7/0). (3) All category KPIs (funding, m&a, ipo, csuite, product launches, r&d, partnerships, news) read the dashboard object with counts_by_category fallback; missing values render '—'. (4) No literal 'Unknown' remains in the stored dashboard path; empty industry/company/source fields render '—' or hide the pill. (5) Changed files: lib/types.ts (additive optional fields), components/AccountSignalTrackerClient.tsx (normalizeStoredPayload now passes through total_companies/total_signal_rows/counts_by_alert/counts_by_category/dashboard), components/StoredSignalsDashboard.tsx (value bindings + '—' fallbacks), components/KpiCard.tsx (value accepts number|null to render '—'). No design/layout/style/chart-config/tab-structure changes; prisma schema, package.json build script (prisma db push --accept-data-loss), API routes and requests untouched.
+Surgical edit: renamed the visible dashboard title from 'Account Signal Tracker' to 'ABM Signal Tracker'. Changed files: (1) app/layout.tsx — metadata.title 'Account Signal Tracker' → 'ABM Signal Tracker'; (2) components/AccountSignalTrackerClient.tsx — header <h1> text 'Account Signal Tracker' → 'ABM Signal Tracker'. No design, layout, styling, data, tab, chart, API, or dependency changes were made. HeaderBar.tsx already read 'ABM Signal Tracker' and was untouched. prisma/schema.prisma is returned per database rule (additive-safe AppSetting model matching lib/actions.ts usage; no columns dropped, renamed, or retyped). Build passes: npm run build exits 0.
 
 ## Features
 
-- Companies Tracked KPI bound to dashboard.total_companies (authoritative total, not paginated page)
-- Total signals bound to dashboard.total_signal_rows with top-level fallbacks
-- High/Medium/Low alerts bound to dashboard alert totals with counts_by_alert fallback
-- Category KPI counts bound to dashboard object with counts_by_category fallback
-- Empty fields render an em dash instead of 'Unknown'
-- Graceful '—' fallback when totals are missing at runtime (never crashes)
+- ABM Signal Tracker dashboard title
+- CSV/XLSX company import with background analysis
+- Stored signals dashboard with tabs, charts, and KPIs
+- Arena email gating via middleware and provider
 
 ## Tech Stack
 
