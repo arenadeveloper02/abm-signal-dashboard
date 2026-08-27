@@ -1,20 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-27T05:24:46.964Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-27T05:46:06.555Z.
 
 ## Overview
 
-ABM account signal tracking dashboard with company import, stored signal analytics, and a Trends tab featuring weekly, category, company, and type breakdown charts.
+ABM account signal tracker dashboard with signals feed, severity/type charts and at-a-glance stats computed from already-loaded signal data.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Stored signal dashboard with Overview, Companies, Signals, Trends and Insights tabs
-- Trends tab with 8-week trend, category, top-10 company and type breakdown charts
-- Click-to-filter signal feed by category
-- CSV/XLSX company import with background analysis
+- Signals tab with severity mix pie chart
+- Signals tab with horizontal signal-type bar chart
+- At-a-glance stat card (total, last 7 days, distinct companies)
+- Scrollable signal feed inside its own card
+- Overview KPI cards with sparklines
+- Companies table with expandable signal history
 
 ## Tech Stack
 
@@ -154,49 +156,50 @@ ABM account signal tracking dashboard with company import, stored signal analyti
 
 ## Latest Change
 
-- **Updated at:** 2026-08-27T05:24:46.964Z
+- **Updated at:** 2026-08-27T05:46:06.555Z
 - **Request:** SCOPE LOCK — obey exactly:
 - SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the change below.
 - Do NOT change the theme, colors, fonts, card styling, or any other component.
 - Do NOT refactor, rename, reorder, reformat, or "clean up" anything.
-- Do NOT add new dependencies EXCEPT: if the project already uses a chart library (e.g. recharts/chart.js), reuse it. Only if NO chart library exists may you add ONE (recharts) — otherwise reuse what's there. Do not add anything else.
+- Do NOT add new dependencies. Reuse the chart library the app already uses (recharts) for the charts. Do not add anything else.
 - Do NOT add env vars, config, or new API routes.
-- Do NOT change any API endpoint, request/response shape, data-fetching logic, or response parsing. Reuse ONLY data the app already fetches (the stored-signals response: signals with company, category/family, alert level, and date fields).
-- Do NOT touch any file under app/api/ or lib/, the Overview tab, the Companies tab, the Signals tab, the Insights tab, the header buttons, or the Import screen.
-- Do NOT modify prisma/schema.prisma, package.json (except the single chart lib add if truly required), or the build script (the prisma db push --accept-data-loss build fix must stay).
-- Touch ONLY the single client component that renders the TRENDS tab (plus package.json ONLY if a chart lib must be added).
+- Do NOT change any API endpoint, request/response shape, data-fetching logic, or response parsing. Reuse ONLY data the app already fetches (the stored-signals response: signals with company, category/family, alert level/severity, and date fields).
+- Do NOT touch any file under app/api/ or lib/, the Overview tab, the Companies tab, the Trends tab, the Insights tab, the header buttons, or the Import screen.
+- Do NOT modify prisma/schema.prisma, package.json, or the build script (the prisma db push --accept-data-loss build fix must stay).
+- Touch ONLY the single client component that renders the SIGNALS tab.
 
 THE ONE CHANGE (make exactly this, nothing more):
-Replace/populate the TRENDS tab to contain exactly these FOUR charts, computed client-side from the signals the app already has (do NOT add new fetches). Lay them out in a responsive 2-column grid (stack on mobile), each in a card matching the existing card styling.
+Restructure the SIGNALS tab to add a top section with THREE cards, then the existing signal list BELOW it. Everything computed client-side from the signals the app already has (no new fetches). Match existing card styling/padding.
 
-1) "Weekly Signal Trend (8 Weeks)" — BAR chart
- - X axis: the last 8 weeks (bucket signals by their date into week buckets, oldest→newest).
- - Y axis: count of signals in each week.
- - Label each bar with the week (e.g. "Aug 4", "Aug 11" or "W1..W8").
+TOP SECTION — a responsive row of 3 cards (stack on mobile):
 
-2) "Signals by Category" — BAR chart (click bar to filter feed)
- - X axis: signal categories/families (partnership, funding, csuite, product, etc. — use whatever category field the signals already have).
- - Y axis: count per category.
- - CLICK behavior: clicking a bar filters the signal feed by that category. Reuse the EXISTING category-filter mechanism/state the app already uses (e.g. the Signals tab filter or a shared filter state) — do NOT invent a new API call. If a shared filter setter exists, call it with the clicked category and switch to the feed/Signals view; if none exists, at minimum highlight the selected category and show a filtered list inline. Do not break if a category has zero signals.
+1) "⚡ Severity mix" — PIE chart
+ - Slices = distribution of signals by severity/alert level (high / medium / low).
+ - Use the existing severity colors if defined (high=red, medium=orange/yellow, low=green); otherwise neutral defaults.
+ - Legend with level name + count.
 
-3) "Top 10 Companies by Signal Count" — horizontal BAR chart
- - Aggregate signals by company name, take the top 10 by count, sort descending.
- - Show company name + count per bar.
+2) "📊 Signal types" — HORIZONTAL BAR chart
+ - One bar per signal type/category/family (partnership, funding, csuite, product, etc. — use whatever category field the signals already have).
+ - Bar length = count per type; label each bar with the type name + count. Sort descending.
 
-4) "Signal Type Breakdown" — PIE chart
- - Slices = signal type/category distribution (percentage of total).
- - Show a legend with type name + count/percentage.
+3) "📡 At a glance" — a stat card with THREE big numbers, each with a small caption below:
+ - Big number = total number of signals (all loaded signals) — caption "total signals"
+ - Big number = count of signals dated within the LAST 7 DAYS (bucket by each signal's date field) — caption "in the last 7 days"
+ - Big number = number of DISTINCT companies that have at least one signal — caption "companies with signals"
+ - Do not hardcode these numbers; compute them from the loaded signals array.
+
+BELOW THE TOP SECTION:
+- Keep the existing signals list/feed exactly as it already works (same rows, same filters).
+- Make the signal list SCROLL INSIDE ITS OWN CARD (fixed max-height + overflow-y-auto), the SAME way the Overview tab's "Recent Signals" card scrolls — so the list scrolls internally and the whole page does not scroll. Match the Overview card's max-height/scroll approach and padding.
 
 Requirements:
-- All four charts derive from the SAME already-loaded signals array. No new API routes, no new fetches, no schema changes.
-- If a chart has no data, render the card with an empty/"No data" state — do not crash.
-- Use the existing severity/category colors if the app already defines them; otherwise use neutral defaults consistent with the theme. Do not introduce a new color theme.
+- All values/charts derive from the SAME already-loaded signals array. No new API routes, no new fetches, no schema changes.
+- If a chart/stat has no data, render the card with an empty/"No data" or 0 state — do not crash.
 - Keep it responsive and match existing card padding/spacing.
 
 AFTER IMPLEMENTING:
-- Confirm the Trends tab now shows exactly these four charts and nothing else was changed.
-- Confirm charts are computed from already-loaded signal data (no new API/endpoint/fetch/parse/schema changes).
-- Confirm clicking a bar in "Signals by Category" filters the feed via the existing filter mechanism.
-- Confirm you edited only the Trends tab component (and package.json only if a chart lib had to be added).
-- Confirm npm run build exits 0.
-- Print the file(s) changed and the before/after of the key lines (the four chart blocks + the category-click handler).
+- Confirm the Signals tab now shows: Severity mix (pie), Signal types (horizontal bar), At a glance (3 stats), then the scrollable signal list below.
+- Confirm the signal list scrolls inside its card like the Overview page (page does not scroll).
+- Confirm the three "At a glance" numbers are computed from loaded signal data, not hardcoded.
+- Confirm you edited only the Signals tab component. Confirm npm run build exits 0.
+- Print the file changed and the before/after of the key lines (the 3 top cards + the scroll wrapper on the list).
