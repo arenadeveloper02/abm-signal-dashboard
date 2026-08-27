@@ -1,24 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-27T07:02:01.329Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-27T07:23:30.314Z.
 
 ## Overview
 
-ABM account signal tracker dashboard with Overview charts (weekly trend, type breakdown, top industries), click-to-filter Recent Signals feed, companies table, signals feed, trends and insights tabs.
+Surgical data-binding fix: the stored-signals dashboard now reads authoritative totals from the API's `dashboard` object (with documented fallback chains) instead of deriving counts from the paginated signals page, and empty fields render an em dash instead of the literal 'Unknown'. VERIFICATION: (1) Companies KPI reads dashboard.total_companies -> total_companies -> dashboard.companies_total -> dashboard.companies_tracked (displays 23, never company_count/returned/companies.length). (2) Total signals reads dashboard.total_signal_rows -> total_signal_rows -> total (75); High/Medium/Low read dashboard.high_alerts/medium_alerts/low_alerts -> counts_by_alert (25/7/0). (3) All category KPIs (funding, m&a, ipo, csuite, product launches, r&d, partnerships, news) read the dashboard object with counts_by_category fallback; missing values render '—'. (4) No literal 'Unknown' remains in the stored dashboard path; empty industry/company/source fields render '—' or hide the pill. (5) Changed files: lib/types.ts (additive optional fields), components/AccountSignalTrackerClient.tsx (normalizeStoredPayload now passes through total_companies/total_signal_rows/counts_by_alert/counts_by_category/dashboard), components/StoredSignalsDashboard.tsx (value bindings + '—' fallbacks), components/KpiCard.tsx (value accepts number|null to render '—'). No design/layout/style/chart-config/tab-structure changes; prisma schema, package.json build script (prisma db push --accept-data-loss), API routes and requests untouched.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 47
 
 ## Features
 
-- Overview KPI cards with sparklines
-- Weekly Signal Trend bar chart (click to filter feed)
-- Signal Type Breakdown pie chart (click to filter feed)
-- Top Industries bar chart (click to filter table)
-- Overview Recent Signals card with severity pills and internal scrolling
-- Companies table with expandable signal history
-- Signals feed with type/severity/family filters
-- Trends and Insights tabs
+- Companies Tracked KPI bound to dashboard.total_companies (authoritative total, not paginated page)
+- Total signals bound to dashboard.total_signal_rows with top-level fallbacks
+- High/Medium/Low alerts bound to dashboard alert totals with counts_by_alert fallback
+- Category KPI counts bound to dashboard object with counts_by_category fallback
+- Empty fields render an em dash instead of 'Unknown'
+- Graceful '—' fallback when totals are missing at runtime (never crashes)
 
 ## Tech Stack
 
@@ -160,41 +158,48 @@ ABM account signal tracker dashboard with Overview charts (weekly trend, type br
 
 ## Latest Change
 
-- **Updated at:** 2026-08-27T07:02:01.329Z
-- **Request:** SCOPE LOCK — OVERVIEW RESTORE ONLY. Obey exactly. This is a SURGICAL EDIT to the existing repo, NOT a regeneration.
+- **Updated at:** 2026-08-27T07:23:30.314Z
+- **Request:** SCOPE LOCK — DATA VALUES ONLY. Obey exactly. This is a SURGICAL EDIT to the existing repo, NOT a regeneration. You may ONLY change how numbers/values are computed and displayed. You may NOT change design, layout, styling, theme, colors, fonts, components, tabs, charts, copy, or structure in ANY way.
 
-BACKGROUND: A previous run removed three interactive charts from the OVERVIEW tab. This run must put them back and otherwise leave EVERYTHING as it currently is.
+PROBLEM (from the real API response the app already fetches):
+The API returns CORRECT totals but the dashboard is displaying WRONG numbers and 'Unknown' placeholders. Fix ONLY the data binding so the displayed values match the API.
 
-GOAL — OVERVIEW TAB ONLY:
-Restore these THREE charts to the Overview tab exactly as they existed before (same positions, same styling, same interactivity), IN ADDITION to everything already on Overview (do not remove or move any existing Overview element — KPI cards, stat cards, Recent Signals card, etc. must all stay):
-1) "Weekly Signal Trend (click point to filter feed)" — a BAR graph; clicking a bar/point filters the signal feed by that week.
-2) "Signal Type Breakdown (click to filter feed)" — a PIE chart; clicking a slice filters the feed by that signal type.
-3) "Top Industries by Signal Count (click to filter table)" — a BAR graph; clicking a bar filters the table by that industry.
-All three are computed client-side from the already-loaded signals data. Keep the click-to-filter behavior working. Use recharts (already in the repo).
+GROUND TRUTH — the API response (same endpoint the app already calls) contains a top-level summary AND a `dashboard` object with the authoritative totals. Example shape:
+{
+  "total": 75,
+  "total_companies": 23,
+  "total_signal_rows": 75,
+  "returned": 32,          // <-- paginated page size, DO NOT use for totals
+  "offset": 42,            // <-- pagination offset, DO NOT use for totals
+  "company_count": 2,      // <-- companies on THIS page only, DO NOT use for totals
+  "counts_by_alert": { "high": 25, "medium": 7, "low": 0 },
+  "counts_by_category": { "funding": 4, "m_and_a": 2, "ipo": 1, "csuite_change": 3, "product_launch": 7, "r_and_d": 1, "partnership": 10, "news": 4, ... },
+  "dashboard": {
+    "total_companies": 23, "companies_total": 23, "companies_tracked": 23,
+    "total_signal_rows": 75, "total_signals": 32,
+    "high_alerts": 25, "medium_alerts": 7, "low_alerts": 0,
+    "csuite_changes": 3, "funding": 4, "mergers_acquisitions": 2, "ipo": 1,
+    "news": 4, "product_launches": 7, "r_and_d": 1, "partnerships": 10, "other": 0
+  },
+  "companies": [ ... ],
+  "signals": [ ... paginated page of signal rows ... ]
+}
 
-RECENT SIGNALS CARD (Overview ONLY — nowhere else):
-The Overview "Recent Signals" card must render each signal row in THIS exact format (match the reference the user provided):
-- Top row: a colored severity pill ("HIGH" red / "MEDIUM" orange / "LOW" green) next to a category pill (e.g. "C-Suite Change"), with the date right-aligned (e.g. "Aug 24, 2026").
-- Company name as a bold blue link.
-- Bold signal headline/title.
-- One- or two-line description in grey.
-- Bottom row: an industry tag pill (e.g. "Technology"), then location text, then the source as a blue link (e.g. "Google Blog", "CNBC", "Reuters").
-- A colored left border on the card matching severity (red for HIGH).
-- The card scrolls internally (fixed max-height + overflow-y-auto) so the page does not scroll.
-Apply this row format ONLY in the Overview Recent Signals card. Do NOT change the row format anywhere else (Signals tab feed keeps its own current format).
+ROOT CAUSE TO FIX:
+1) COMPANIES COUNT is showing 7 (wrong) instead of 23. The code is deriving the company count from the paginated `signals`/`companies` page (or `company_count`), NOT from the authoritative total. FIX: read the companies KPI from `dashboard.total_companies` (fallback: top-level `total_companies`, then `dashboard.companies_total`). NEVER derive it by counting the returned `signals` page or using `company_count`, `returned`, or `companies.length`.
+2) SIGNAL TOTALS are wrong. FIX: read total signals from `dashboard.total_signal_rows` (fallback: top-level `total_signal_rows`, then `total`). Read high/medium/low from `dashboard.high_alerts`/`medium_alerts`/`low_alerts` (fallback `counts_by_alert.high/medium/low`). Read category counts (funding, m&a, ipo, csuite, product launches, r&d, partnerships, news) from the `dashboard` object (fallback `counts_by_category`). NEVER recompute these by filtering the paginated `signals` array.
+3) 'Unknown' VALUES. These appear because some signal rows have empty fields (e.g. blank `Industry`, empty `source_name`, missing `company_name`). FIX the display fallback ONLY: when a field is empty/null/undefined, show a clean fallback of an em dash '—' (or '' where a pill would look wrong) instead of the literal text 'Unknown'. Do not fabricate values. Do not change which field is read except where the current field is clearly the wrong key — prefer the populated equivalent already present on the row (e.g. company_name || company, source_name || fields['Source Name'], industry || fields['Industry']).
 
-STRICT DO-NOT-TOUCH (byte-for-byte unchanged):
-- Do NOT change ANY tab other than Overview. The Signals tab, Trends tab, Companies tab, and Insights tab must stay EXACTLY as they currently are — do not edit, reformat, re-emit, or 'improve' them.
-- Do NOT change header buttons, the Import screen, app/api/, lib/, prisma/schema.prisma, package.json, next.config, globals.css, or the build script (the `prisma db push --accept-data-loss` fix MUST remain).
-- Do NOT add dependencies, env vars, new API routes, or new fetches. Do NOT change any request/response shape or parsing. Reuse ONLY data the app already fetches.
-- Preserve the current theme, colors, fonts, and card styling.
+STRICT RULES:
+- Change ONLY value/number bindings and empty-value fallbacks. Do NOT touch JSX structure, className/styles, chart config, layout, tab code, headers, Import screen, app/api/, lib/, prisma/schema.prisma, package.json, next.config, globals.css, or the build script (`prisma db push --accept-data-loss` MUST remain).
+- Do NOT add dependencies, env vars, API routes, or new fetches. Do NOT change the request/response shape. Reuse ONLY data already fetched.
+- Do NOT change any tab's design or content other than the numbers being corrected.
+- If a total field is missing at runtime, fall back through the chain above; if all are missing, show '—' (never crash, never 'Unknown').
 
-EMPTY STATES: if a chart has no data, render an empty/'No data' state — never crash.
-
-VERIFICATION (print all of this at the end):
-- Confirm the Overview tab now shows all three charts: Weekly Signal Trend (bar, click-to-filter-feed), Signal Type Breakdown (pie, click-to-filter-feed), Top Industries by Signal Count (bar, click-to-filter-table) — in addition to all previously existing Overview elements (list them to prove nothing was removed).
-- Confirm the Overview Recent Signals card uses the severity-pill + category-pill + date / blue company link / bold headline / grey description / industry tag + location + blue source format, scrolling inside its card.
-- Confirm the Signals, Trends, Companies, and Insights tabs are UNCHANGED.
-- Confirm header buttons, Import screen, app/api/, lib/, prisma/schema.prisma, package.json, and build script are UNCHANGED.
+VERIFICATION (print at the end):
+- Confirm the Companies KPI now reads from dashboard.total_companies and would display 23 (not 7) for this response.
+- Confirm total signals reads from dashboard.total_signal_rows / total (75) and high/medium/low read from dashboard alerts (25 / 7 / 0).
+- Confirm category counts read from the dashboard object.
+- Confirm no remaining literal 'Unknown' strings; empty fields render '—'.
+- Confirm NO design/layout/styling/tab/chart changes were made — list every file changed (should be minimal, data-binding only) and show before/after of each changed line.
 - Confirm `npm run build` exits 0.
-- Print the list of files changed (should be only the Overview tab component) and the before/after of the key lines.

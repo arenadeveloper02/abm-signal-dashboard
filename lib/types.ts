@@ -185,6 +185,32 @@ export interface StoredSignal {
   fields?: Record<string, string>
 }
 
+export interface CountsByAlert {
+  high?: number
+  medium?: number
+  low?: number
+}
+
+export interface StoredDashboardTotals {
+  total_companies?: number
+  companies_total?: number
+  companies_tracked?: number
+  total_signal_rows?: number
+  total_signals?: number
+  high_alerts?: number
+  medium_alerts?: number
+  low_alerts?: number
+  csuite_changes?: number
+  funding?: number
+  mergers_acquisitions?: number
+  ipo?: number
+  news?: number
+  product_launches?: number
+  r_and_d?: number
+  partnerships?: number
+  other?: number
+}
+
 export interface StoredSignalsResult {
   total: number
   returned: number
@@ -197,6 +223,12 @@ export interface StoredSignalsResult {
   matched_count?: number
   unmatched_count?: number
   companies?: StoredCompany[]
+  total_companies?: number
+  total_signal_rows?: number
+  company_count?: number
+  counts_by_alert?: CountsByAlert
+  counts_by_category?: Record<string, number>
+  dashboard?: StoredDashboardTotals
 }
 
 export type NormalizedSeverity = 'HIGH' | 'MEDIUM' | 'LOW'

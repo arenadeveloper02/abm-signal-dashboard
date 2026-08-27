@@ -6,7 +6,7 @@ import type { KpiPill } from '@/lib/types'
 interface KpiCardProps {
   icon: string
   label: string
-  value: number
+  value: number | null
   accent: string
   sparkData: number[]
   pills?: KpiPill[]
@@ -22,7 +22,7 @@ export default function KpiCard({ icon, label, value, accent, sparkData, pills, 
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${label}: ${value}. Click to filter signals`}
+      aria-label={`${label}: ${value === null ? '\u2014' : value}. Click to filter signals`}
       className="group flex flex-col rounded-2xl border bg-white p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3BC884]/60"
       style={{ borderColor: selected ? accent : `${accent}55`, boxShadow: selected ? `0 0 0 1px ${accent}` : undefined }}
     >
@@ -37,7 +37,7 @@ export default function KpiCard({ icon, label, value, accent, sparkData, pills, 
           </span>
         )}
       </div>
-      <div className="mt-2 text-4xl font-semibold text-[#2C2D33]">{value.toLocaleString('en-US')}</div>
+      <div className="mt-2 text-4xl font-semibold text-[#2C2D33]">{value === null ? '\u2014' : value.toLocaleString('en-US')}</div>
       <div className="mt-1 text-[11px] font-medium uppercase tracking-wider text-[#8A8D99]">{label}</div>
       {pills && (
         <div className="mt-2 flex gap-1.5">

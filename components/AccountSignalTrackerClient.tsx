@@ -58,6 +58,12 @@ function normalizeStoredPayload(json: StoredPayload, requestedCount: number): St
     },
     unmatched_inputs: Array.isArray(json.unmatched_inputs) ? json.unmatched_inputs : [],
     companies: Array.isArray(json.companies) ? json.companies : [],
+    total_companies: typeof json.total_companies === 'number' ? json.total_companies : undefined,
+    total_signal_rows: typeof json.total_signal_rows === 'number' ? json.total_signal_rows : undefined,
+    company_count: typeof json.company_count === 'number' ? json.company_count : undefined,
+    counts_by_alert: json.counts_by_alert,
+    counts_by_category: json.counts_by_category,
+    dashboard: json.dashboard,
     signals,
   }
 }
@@ -267,7 +273,7 @@ export default function AccountSignalTrackerClient() {
       if (!res.ok) {
         if (res.status === 500 && Array.isArray(json.missing) && json.missing.length > 0) {
           setToast(
-            `Background analysis failed — missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}.`
+            `Background analysis failed \u2014 missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}.`
           )
           return
         }
@@ -280,7 +286,7 @@ export default function AccountSignalTrackerClient() {
       }
       const found =
         typeof json.total_signals === 'number'
-          ? ` — ${json.total_signals} signal${json.total_signals === 1 ? '' : 's'} found`
+          ? ` \u2014 ${json.total_signals} signal${json.total_signals === 1 ? '' : 's'} found`
           : ''
       setToast(`Background analysis completed${found}. Click \u201cRefresh Dashboard\u201d to see the latest data.`)
     } catch {
@@ -330,34 +336,49 @@ export default function AccountSignalTrackerClient() {
                 aria-label="Refresh dashboard"
                 className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
               >
-                {loadingStored ? 'Refreshing…' : 'Refresh Dashboard'}
+                {loadingStored ? 'Refreshing\u2026' : 'Refresh Dashboard'}
               </button>
             </div>
           ) : (
-            <div className="ml-auto">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setView('dashboard')}
                 className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
               >
-                ← Back to Dashboard
+                Back to Dashboard
               </button>
             </div>
           )}
         </div>
       </header>
 
-      {view === 'dashboard' ? (
-        loadingStored ? (
-          <main className="mx-auto max-w-7xl px-4 py-6">
+      {toast && (
+        <div
+          className="mx-auto mt-4 flex max-w-7xl items-start gap-3 rounded-xl border border-[#1A73E8]/30 bg-[#F3F8FE] px-4 py-3 text-sm text-[#155CBA]"
+          role="status"
+        >
+          <span className="flex-1">{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="Dismiss notification"
+            className="text-[#155CBA] transition-colors hover:text-[#0A2E5D]"
+          >
+            {'\u2715'}
+          </button>
+        </div>
+      )}
+
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        {view === 'dashboard' ? (
+          loadingStored ? (
             <DashboardSkeleton />
-          </main>
-        ) : storedError ? (
-          <main className="mx-auto max-w-7xl px-4 py-6">
+          ) : storedError ? (
             <div className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center" role="alert">
-              <p className="text-3xl" aria-hidden="true">⚠️</p>
-              <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load dashboard data</p>
-              <p className="mt-1 text-xs text-[#575A66]">{storedError}</p>
+              <p className="text-3xl" aria-hidden="true">{'\u26A0\uFE0F'}</p>
+              <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load stored signals</p>
+              <p className="mt-1 text-xs text-[#8A8D99]">{storedError}</p>
               <button
                 type="button"
                 onClick={() => void fetchAllStored()}
@@ -366,183 +387,154 @@ export default function AccountSignalTrackerClient() {
                 Retry
               </button>
             </div>
-          </main>
-        ) : storedResult ? (
-          <StoredSignalsDashboard result={storedResult} />
-        ) : null
-      ) : (
-        <main className="mx-auto max-w-3xl px-4 py-8">
-          <div className="rounded-2xl border border-[#E2E3E5] bg-white p-6">
-            <h2 className="text-lg font-semibold text-[#2C2D33]">Import Companies</h2>
-            <p className="mt-1 text-sm text-[#575A66]">
-              Add companies one at a time or upload a CSV / XLSX file, then run analysis in the background.
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <input
-                type="text"
-                value={typedCompany}
-                onChange={(e) => setTypedCompany(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddTyped()
+          ) : storedResult ? (
+            <StoredSignalsDashboard result={storedResult} />
+          ) : null
+        ) : (
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Import companies">
+              <h2 className="text-sm font-semibold text-[#575A66]">Import Company List</h2>
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setIsDragging(true)
                 }}
-                placeholder="Add a company (e.g. Acme Inc,San Francisco,CA,USA)"
-                aria-label="Add a company"
-                className="min-w-0 flex-1 rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#A7AAB2] focus:border-[#1A73E8] focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddTyped}
-                className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA]"
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setIsDragging(false)
+                  handleFiles(e.dataTransfer.files)
+                }}
+                className={`mt-3 flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                  isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#E2E3E5] bg-[#F7F8F9]'
+                }`}
               >
-                Add Company
-              </button>
-            </div>
-
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Upload a company file"
-              onClick={() => fileInputRef.current?.click()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click()
-              }}
-              onDragOver={(e) => {
-                e.preventDefault()
-                setIsDragging(true)
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault()
-                setIsDragging(false)
-                handleFiles(e.dataTransfer.files)
-              }}
-              className={`mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
-                isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#C5C6CC] bg-[#F7F8F9] hover:border-[#1A73E8]'
-              }`}
-            >
-              <span className="text-3xl" aria-hidden="true">📄</span>
-              <p className="mt-2 text-sm font-medium text-[#2C2D33]">
-                Drag &amp; drop a CSV or XLSX file here, or click to browse
-              </p>
-              <p className="mt-1 text-xs text-[#8A8D99]">
-                Expected a column named Company, Company_Name or Company Name.
-              </p>
-              {fileName !== '' && (
-                <p className="mt-2 text-xs font-medium text-[#1A73E8]">Loaded: {fileName}</p>
+                <p className="text-3xl" aria-hidden="true">{'\u{1F4C4}'}</p>
+                <p className="mt-2 text-sm font-medium text-[#2C2D33]">Drag and drop a CSV or XLSX file here</p>
+                <p className="mt-1 text-xs text-[#8A8D99]">
+                  Expected a column named Company, Company_Name or Company Name
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-4 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA]"
+                >
+                  Browse Files
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx"
+                  className="hidden"
+                  aria-label="Upload company list"
+                  onChange={(e) => {
+                    handleFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+                {fileName !== '' && <p className="mt-3 text-xs text-[#575A66]">Loaded: {fileName}</p>}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={typedCompany}
+                  onChange={(e) => setTypedCompany(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddTyped()
+                  }}
+                  placeholder="Company, City, State, Country"
+                  aria-label="Add a company manually"
+                  className="w-full max-w-md rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#9AA0AE] focus:border-[#1A73E8] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddTyped}
+                  className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
+                >
+                  Add Company
+                </button>
+              </div>
+              {importError && (
+                <p className="mt-3 text-xs font-medium text-[#F31A1A]" role="alert">
+                  {importError}
+                </p>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx"
-                className="hidden"
-                onChange={(e) => {
-                  handleFiles(e.target.files)
-                  e.target.value = ''
-                }}
-              />
-            </div>
+            </section>
 
-            {importError && (
-              <p className="mt-3 rounded-xl border border-[#FAA3A3] bg-[#FFF3F3] px-3 py-2 text-xs text-[#921010]" role="alert">
-                {importError}
-              </p>
-            )}
-
-            <div className="mt-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-[#2C2D33]">
-                  {visibleRows.length} of {importList.length} compan{importList.length === 1 ? 'y' : 'ies'} in the list
-                </h3>
-                {importList.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setImportList([])}
-                    className="text-xs font-medium text-[#575A66] transition-colors hover:text-[#F31A1A]"
-                  >
-                    Clear all
-                  </button>
-                )}
+            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Companies to analyze">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold text-[#575A66]">Companies to Analyze</h2>
+                <span className="text-xs text-[#8A8D99]">{importList.length} added</span>
               </div>
               {importList.length === 0 ? (
-                <p className="mt-3 rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] px-4 py-6 text-center text-sm text-[#8A8D99]">
-                  No companies added yet. Type a company above or upload a file.
+                <p className="mt-4 text-sm text-[#8A8D99]">
+                  No companies added yet. Upload a file or add companies manually above.
                 </p>
               ) : (
-                <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-[#E2E3E5]">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        <th className="sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]">
-                          Company
-                        </th>
-                        <th className="sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]">
-                          Location
-                        </th>
-                        <th className="sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]">
-                          Action
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleRows.map((c) => (
-                        <tr key={c.id} className="border-b border-[#F0F1F2] last:border-b-0">
-                          <td className="px-4 py-2 font-medium text-[#2C2D33]">{c.name}</td>
-                          <td className="px-4 py-2 text-[#575A66]">{c.location !== '' ? c.location : '—'}</td>
-                          <td className="px-4 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleRemove(c.id)}
-                              aria-label={`Remove ${c.name}`}
-                              className="rounded-lg border border-[#E2E3E5] px-2.5 py-1 text-xs font-medium text-[#575A66] transition-colors hover:border-[#F31A1A]/50 hover:text-[#F31A1A]"
-                            >
-                              Remove
-                            </button>
-                          </td>
+                <>
+                  <div className="mt-3 max-h-80 overflow-y-auto rounded-xl border border-[#E2E3E5]">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr>
+                          <th className="sticky top-0 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]">
+                            Company
+                          </th>
+                          <th className="sticky top-0 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]">
+                            Location
+                          </th>
+                          <th className="sticky top-0 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]">
+                            Remove
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {visibleRows.map((c) => (
+                          <tr key={c.id} className="border-b border-[#F0F1F3] last:border-b-0">
+                            <td className="px-4 py-2 font-medium text-[#2C2D33]">{c.name}</td>
+                            <td className="px-4 py-2 text-[#575A66]">{c.location !== '' ? c.location : '\u2014'}</td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemove(c.id)}
+                                aria-label={`Remove ${c.name}`}
+                                className="rounded-lg border border-[#E2E3E5] px-2 py-0.5 text-xs text-[#575A66] transition-colors hover:border-[#F31A1A]/60 hover:text-[#F31A1A]"
+                              >
+                                {'\u2715'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {importList.length > MAX_VISIBLE_ROWS && (
+                    <p className="mt-2 text-xs text-[#8A8D99]">
+                      Showing first {MAX_VISIBLE_ROWS} of {importList.length} companies. All will be analyzed.
+                    </p>
+                  )}
+                </>
               )}
-              {importList.length > MAX_VISIBLE_ROWS && (
-                <p className="mt-2 text-xs text-[#8A8D99]">
-                  Showing the first {MAX_VISIBLE_ROWS} rows. All {importList.length} companies will be analyzed.
-                </p>
-              )}
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={handleSaveAnalyze}
-                disabled={importList.length === 0}
-                className="rounded-xl bg-[#1A73E8] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
-              >
-                Save &amp; Analyze
-              </button>
-            </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveAnalyze}
+                  disabled={importList.length === 0}
+                  className="rounded-xl bg-[#1A73E8] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
+                >
+                  Save & Run Analysis
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('dashboard')}
+                  className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:border-[#1A73E8] hover:text-[#1A73E8]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </section>
           </div>
-        </main>
-      )}
-
-      {toast && (
-        <div
-          role="status"
-          className="fixed bottom-4 right-4 z-50 flex max-w-sm items-start gap-3 rounded-2xl border border-[#A3C7F6] bg-white p-4 shadow-[0_4px_16px_rgba(44,45,51,0.12)]"
-        >
-          <span className="text-lg" aria-hidden="true">⏳</span>
-          <p className="text-sm text-[#2C2D33]">{toast}</p>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            aria-label="Dismiss notification"
-            className="ml-auto rounded-lg px-1.5 text-sm text-[#8A8D99] transition-colors hover:text-[#2C2D33]"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   )
 }
