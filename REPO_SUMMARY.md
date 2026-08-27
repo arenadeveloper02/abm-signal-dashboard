@@ -1,21 +1,23 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-27T05:09:51.851Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-27T05:10:06.607Z.
 
 ## Overview
 
-ABM Account Signal Tracker dashboard. Fixed the truncated/broken components/StoredSignalsDashboard.tsx (unclosed JSX tags and unterminated template literal) by restoring the complete component render. The Recent Signals card now carries the same p-5 inner padding as the sibling dashboard cards on its container (so the header and list are both inset), while the signal list keeps its max-h-96 overflow-y-auto internal scroll region so it scrolls inside the card instead of the page.
+ABM account signal tracker dashboard with company import (CSV/XLSX), stored signal analytics, and Arena email gating. This fix repairs the truncated components/StoredSignalsDashboard.tsx (unterminated JSX from a previous edit) and restores the Recent Signals card's inner padding (p-5, matching sibling cards) while keeping its internal max-h-96 overflow-y-auto scroll region.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Overview tab with KPI cards, weekly severity chart, signal type donut, and padded Recent Signals card with internal scroll
-- Companies tab with industry filter and expandable company rows
-- Signals tab with type and week filters over a 90-day feed
-- Trends tab with weekly severity breakdown
-- Insights tab grouping high-severity signals by family
+- Overview KPI cards with sparklines and severity pills
+- Recent Signals card with card-level p-5 padding and internal scrolling list
+- Weekly signal volume and signal-type mix charts
+- Companies table with expandable signal history
+- Signal feed with type and week filters
+- Insights grouped by signal family
+- Arena email gate with access-denied page
 
 ## Tech Stack
 
@@ -155,7 +157,7 @@ ABM Account Signal Tracker dashboard. Fixed the truncated/broken components/Stor
 
 ## Latest Change
 
-- **Updated at:** 2026-08-27T05:09:51.851Z
+- **Updated at:** 2026-08-27T05:10:06.607Z
 - **Request:** SCOPE LOCK — obey exactly:
 - SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the single fix below.
 - Do NOT change the theme, colors, fonts, layout, card borders, or any other component.
