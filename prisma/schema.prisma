@@ -9,9 +9,8 @@ datasource db {
 }
 
 model AppSetting {
-  id        String   @id @default(cuid())
-  key       String   @unique
+  key       String   @id
   value     String
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
 }

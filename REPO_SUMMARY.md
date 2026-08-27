@@ -1,22 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-27T05:46:06.555Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-27T06:40:36.351Z.
 
 ## Overview
 
-ABM account signal tracker dashboard with signals feed, severity/type charts and at-a-glance stats computed from already-loaded signal data.
+Repaired the truncated/broken components/StoredSignalsDashboard.tsx (TS17008 unclosed JSX + TS1127 invalid character). VERIFICATION: (1) Overview tab restored — original KPI card grid (11 cards with sparklines and H/M/L pills) plus the original scrollable 'Recent Signals' card (max-h-96 + overflow-y-auto). (2) Trends tab restored — original four chart cards: Weekly Signal Trend (clickable bars via activeLabelOf), Signals by Category (clickable family bars), Top 10 Companies horizontal bar, Signal Type Breakdown donut + legend. (3) Companies tab restored — original sortable/expandable table inside a max-h-[70vh] scroll container with sticky headers, expandable signal history, tech-stack/keyword chips. (4) Signals tab per spec — top row of THREE cards: '⚡ Severity mix' pie (HIGH=red #FF5252, MEDIUM=orange #FB8145, LOW=grey, legend with name+count), '📊 Signal types' horizontal bar (one bar per display type, label = type · count, sorted descending), '📡 At a glance' with three big numbers computed live from the loaded signals array (total signals / last-7-days count / distinct companies with ≥1 signal — never hardcoded); below it the existing filter bar (type/family/industry/week + Clear) and the existing signal feed now scrolling INSIDE its own card (max-h-96 overflow-y-auto) exactly like Overview's Recent Signals, so the page does not scroll. All charts/stats render 'No data'/0 empty states. UNCHANGED: Insights tab logic (light-theme tiles + HIGH-severity groups), header buttons, Import screen (AccountSignalTrackerClient), all app/api/ routes, lib/, package.json (prisma db push --accept-data-loss build script intact), next.config, globals.css. prisma/schema.prisma echoed byte-identical (updatedAt preserved). No new dependencies; recharts reused; all values computed client-side from the already-fetched stored-signals array.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 46
 
 ## Features
 
-- Signals tab with severity mix pie chart
-- Signals tab with horizontal signal-type bar chart
-- At-a-glance stat card (total, last 7 days, distinct companies)
-- Scrollable signal feed inside its own card
-- Overview KPI cards with sparklines
-- Companies table with expandable signal history
+- Overview tab with KPI cards and scrollable Recent Signals card
+- Companies tab with expandable, scroll-contained table
+- Signals tab: severity-mix pie, signal-types horizontal bar, at-a-glance stats, scrollable feed
+- Trends tab with clickable weekly/category charts
+- Insights tab with high-severity highlights
 
 ## Tech Stack
 
@@ -156,50 +155,45 @@ ABM account signal tracker dashboard with signals feed, severity/type charts and
 
 ## Latest Change
 
-- **Updated at:** 2026-08-27T05:46:06.555Z
-- **Request:** SCOPE LOCK — obey exactly:
-- SURGICAL EDIT to an existing repo, NOT a regeneration. Preserve every existing file byte-for-byte except the change below.
-- Do NOT change the theme, colors, fonts, card styling, or any other component.
-- Do NOT refactor, rename, reorder, reformat, or "clean up" anything.
-- Do NOT add new dependencies. Reuse the chart library the app already uses (recharts) for the charts. Do not add anything else.
-- Do NOT add env vars, config, or new API routes.
-- Do NOT change any API endpoint, request/response shape, data-fetching logic, or response parsing. Reuse ONLY data the app already fetches (the stored-signals response: signals with company, category/family, alert level/severity, and date fields).
-- Do NOT touch any file under app/api/ or lib/, the Overview tab, the Companies tab, the Trends tab, the Insights tab, the header buttons, or the Import screen.
-- Do NOT modify prisma/schema.prisma, package.json, or the build script (the prisma db push --accept-data-loss build fix must stay).
-- Touch ONLY the single client component that renders the SIGNALS tab.
+- **Updated at:** 2026-08-27T06:40:36.351Z
+- **Request:** SCOPE LOCK — RESTORE + SINGLE-TAB EDIT. Obey exactly.
 
-THE ONE CHANGE (make exactly this, nothing more):
-Restructure the SIGNALS tab to add a top section with THREE cards, then the existing signal list BELOW it. Everything computed client-side from the signals the app already has (no new fetches). Match existing card styling/padding.
+GOAL (two things, nothing else):
+A) RESTORE the Overview tab, Trends tab, and Companies tab to their ORIGINAL state — exactly how they were before the recent edits (original layout, cards, charts, spacing, colors, scroll behavior). Undo any drift/changes the recent runs introduced on these three tabs. Use the repo's git history / original implementation of these tab files as the source of truth and restore them.
+B) Apply the Signals-tab change described below.
 
-TOP SECTION — a responsive row of 3 cards (stack on mobile):
+DO NOT TOUCH ANYTHING ELSE: the Insights tab, header buttons, Import screen, app/api/, lib/, prisma/schema.prisma, package.json, next.config, globals.css, and the build script (the `prisma db push --accept-data-loss` fix MUST remain) stay byte-for-byte unchanged.
 
-1) "⚡ Severity mix" — PIE chart
- - Slices = distribution of signals by severity/alert level (high / medium / low).
- - Use the existing severity colors if defined (high=red, medium=orange/yellow, low=green); otherwise neutral defaults.
- - Legend with level name + count.
+ABSOLUTE RULES:
+1. SURGICAL EDIT to the existing repo, NOT a regeneration. Do NOT regenerate the whole app.
+2. Restore Overview/Trends/Companies tab files to their original versions from git history. Do not invent new designs for them — return them to how they originally looked and worked.
+3. Edit the Signals-tab component to match the spec in section (B).
+4. Do NOT add dependencies. Reuse recharts (already in the repo).
+5. Do NOT add env vars, new API routes, new fetches, or change any request/response shape or parsing. Reuse ONLY data the app already fetches (the stored-signals array: signals with company, category/family, alert level/severity, and date fields).
+6. Preserve the current theme, colors, fonts, and card styling.
 
-2) "📊 Signal types" — HORIZONTAL BAR chart
- - One bar per signal type/category/family (partnership, funding, csuite, product, etc. — use whatever category field the signals already have).
- - Bar length = count per type; label each bar with the type name + count. Sort descending.
+(B) SIGNALS TAB CHANGE:
+Add a top section with THREE cards, then keep the existing signal list BELOW it. All values computed client-side from the already-loaded signals array (no new fetches).
 
-3) "📡 At a glance" — a stat card with THREE big numbers, each with a small caption below:
- - Big number = total number of signals (all loaded signals) — caption "total signals"
- - Big number = count of signals dated within the LAST 7 DAYS (bucket by each signal's date field) — caption "in the last 7 days"
- - Big number = number of DISTINCT companies that have at least one signal — caption "companies with signals"
- - Do not hardcode these numbers; compute them from the loaded signals array.
+TOP SECTION — responsive row of 3 cards (stack on mobile), matching existing card padding/styling:
+1) "⚡ Severity mix" — PIE chart: distribution of signals by severity/alert level (high/medium/low). Use existing severity colors if defined (high=red, medium=orange/yellow, low=green); else neutral defaults. Legend with level name + count.
+2) "📊 Signal types" — HORIZONTAL BAR chart: one bar per signal type/category/family. Bar length = count; label each with type name + count; sort descending.
+3) "📡 At a glance" — stat card with THREE big numbers + captions, all computed from the loaded signals (never hardcoded):
+   - total number of signals — caption "total signals"
+   - count of signals dated within the LAST 7 DAYS — caption "in the last 7 days"
+   - number of DISTINCT companies with ≥1 signal — caption "companies with signals"
 
 BELOW THE TOP SECTION:
-- Keep the existing signals list/feed exactly as it already works (same rows, same filters).
-- Make the signal list SCROLL INSIDE ITS OWN CARD (fixed max-height + overflow-y-auto), the SAME way the Overview tab's "Recent Signals" card scrolls — so the list scrolls internally and the whole page does not scroll. Match the Overview card's max-height/scroll approach and padding.
+- Keep the existing signals list/feed exactly as it works today (same rows, same filters).
+- Make the list SCROLL INSIDE ITS OWN CARD (fixed max-height + overflow-y-auto), the SAME way the Overview tab's "Recent Signals" card scrolls, so the page itself does not scroll.
 
-Requirements:
-- All values/charts derive from the SAME already-loaded signals array. No new API routes, no new fetches, no schema changes.
-- If a chart/stat has no data, render the card with an empty/"No data" or 0 state — do not crash.
-- Keep it responsive and match existing card padding/spacing.
+EMPTY STATES: if a chart/stat has no data, render an empty/"No data"/0 state — never crash.
 
-AFTER IMPLEMENTING:
-- Confirm the Signals tab now shows: Severity mix (pie), Signal types (horizontal bar), At a glance (3 stats), then the scrollable signal list below.
-- Confirm the signal list scrolls inside its card like the Overview page (page does not scroll).
-- Confirm the three "At a glance" numbers are computed from loaded signal data, not hardcoded.
-- Confirm you edited only the Signals tab component. Confirm npm run build exits 0.
-- Print the file changed and the before/after of the key lines (the 3 top cards + the scroll wrapper on the list).
+VERIFICATION (print all of this at the end):
+- Confirm the Overview, Trends, and Companies tabs were RESTORED to their original state and list what you changed back on each.
+- Confirm the Insights tab, header buttons, Import screen, app/api/, lib/, prisma/schema.prisma, package.json, and build script are UNCHANGED.
+- Confirm the Signals tab now shows: Severity mix (pie), Signal types (horizontal bar), At a glance (3 stats), then the scrollable signal list.
+- Confirm the Signals list scrolls inside its card like Overview (page does not scroll).
+- Confirm the 3 At-a-glance numbers are computed from loaded data, not hardcoded.
+- Confirm `npm run build` exits 0.
+- Print the list of files changed and the before/after of the key lines.

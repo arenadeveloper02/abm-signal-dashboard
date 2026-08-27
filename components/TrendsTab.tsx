@@ -249,7 +249,7 @@ export default function TrendsTab({ signals, onSelectFamily }: TrendsTabProps) {
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: t.color }} aria-hidden="true" />
                     <span className="truncate">{t.type}</span>
                     <span className="ml-auto shrink-0 text-[#8A8F9C]">
-                      {t.count} · {pct}%
+                      {t.count} \u00b7 {pct}%
                     </span>
                   </li>
                 )
