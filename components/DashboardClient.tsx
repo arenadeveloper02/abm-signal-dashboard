@@ -153,7 +153,7 @@ export default function DashboardClient({ defaultEmail }: DashboardClientProps) 
                 signalTypes={signalTypes}
               />
             )}
-            {tab === 'trends' && <TrendsTab trends={data.trends} />}
+            {tab === 'trends' && <TrendsTab signals={data.signals} onSelectFamily={handleSelectKpi} />}
             {tab === 'insights' && (
               <InsightsTab
                 insights={data.insights}
