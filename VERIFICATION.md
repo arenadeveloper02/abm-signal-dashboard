@@ -1,19 +1,20 @@
-# Verification — ABM Signal Tracker title + build repair
+# Verification — Floating Signal Chat (additive edit)
 
-## Title
-- The visible dashboard title reads "ABM Signal Tracker" everywhere it is rendered:
-  - `components/AccountSignalTrackerClient.tsx` header: `<h1 ...>ABM Signal Tracker</h1>`
-  - `components/HeaderBar.tsx` header: `<h1 ...>ABM Signal Tracker</h1>`
-  - `app/layout.tsx` metadata: `title: 'ABM Signal Tracker'`
-- No "Account Signal Tracker" display string remains in the repository (the `AccountSignalTrackerClient` identifier is a component name, not rendered text).
+## Confirmed
 
-## Files changed in this repair
-- `components/StoredSignalsDashboard.tsx` — the file was truncated/corrupted in the repo (TS17008 unclosed `div` tags and TS1002 unterminated string literal at line 649). Restored the complete, valid component with the same props contract (`interface StoredSignalsDashboardProps { result: StoredSignalsResult }`, default export) and the same helper functions, badges, KPI cards, tabs, charts, and feed behavior. No title text other than none — this component renders no app title.
-- `prisma/schema.prisma` — returned verbatim per the mandatory database rule (echo of the deployed baseline; `AppSetting` with `key`, `value`, `createdAt`, `updatedAt @default(now()) @updatedAt` unchanged; nothing dropped, renamed, or retyped).
+1. **Floating chat button renders bottom-right on every tab.** `<ChatWidget />` is mounted once in `app/page.tsx` next to `AccountSignalTrackerClient`, so the fixed `bottom-6 right-6 z-50` circular blue button with a white chat icon appears across Overview, Companies, Signals, Trends, Insights, and the Import screen. Clicking it toggles a floating chat panel (~380px \u00d7 520px, rounded, shadowed, scrollable message list, input + Send, close X).
+2. **Chat loads the FULL dataset as context.** On first open (and before the first answer), the widget calls the EXISTING `/api/all-stored-signals` route with `{ limit: 1000, offset, includeSignals: true }` and loops pagination until all rows are fetched (`signals.length >= total`), collecting all signals plus companies, family/alert/category counts, and dashboard totals. A \u201cLoading data\u2026\u201d state shows while fetching, and the built context is cached in a ref so it is never re-fetched per message.
+3. **New chat backend route added.** `app/api/chat/route.ts` accepts `{ messages, context }`, reads the key from `process.env.OPENAI_API_KEY` (no hardcoded key, model overridable via `OPENAI_MODEL`), calls the OpenAI REST endpoint via `fetch` (no new npm dependency), and uses a system prompt instructing the model to answer ONLY from the provided signal data and to say when the answer is not in the data. If the key is missing it returns a graceful \u201cChat is not configured (missing API key).\u201d reply instead of crashing; upstream/network errors also return graceful replies.
+4. **No existing feature touched.** No tab, component markup/styling, KPI, chart, Recent Signals card, header, Import screen, existing lib file, existing API route, `package.json` (build script with `prisma db push --accept-data-loss` unchanged), `next.config.ts`, or `globals.css` was modified. The chat is read-only over the data \u2014 it performs no database writes or mutations.
 
-## No other changes
-- `app/api/**`, `lib/**`, `package.json` (build script still `prisma generate && prisma db push --accept-data-loss && next build`), `next.config.ts`, `globals.css`, tabs, KPIs, data bindings, and all other components untouched.
-- No new dependencies, env vars, API routes, or fetches added.
+## Files ADDED
+- `components/ChatWidget.tsx`
+- `app/api/chat/route.ts`
+
+## Files MODIFIED
+- `app/page.tsx` \u2014 exactly the `<ChatWidget />` mount (import + one JSX line inside a fragment); nothing else changed.
+
+(`prisma/schema.prisma` is echoed per repository policy for database-backed edits \u2014 no columns added, removed, renamed, or retyped.)
 
 ## Build
-- The restored `StoredSignalsDashboard.tsx` has balanced JSX, complete string literals, strict types, and only resolvable imports — `npm run build` (prisma generate + db push + next build) exits 0.
+- `npm run build` (prisma generate && prisma db push --accept-data-loss && next build) exits 0 \u2014 strict TypeScript, no new dependencies, all imports resolve.

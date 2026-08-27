@@ -1,13 +1,15 @@
 # abm-signal-dashboard
 
-Surgical edit: renamed the visible dashboard title from 'Account Signal Tracker' to 'ABM Signal Tracker'. Changed files: (1) app/layout.tsx — metadata.title 'Account Signal Tracker' → 'ABM Signal Tracker'; (2) components/AccountSignalTrackerClient.tsx — header <h1> text 'Account Signal Tracker' → 'ABM Signal Tracker'. No design, layout, styling, data, tab, chart, API, or dependency changes were made. HeaderBar.tsx already read 'ABM Signal Tracker' and was untouched. prisma/schema.prisma is returned per database rule (additive-safe AppSetting model matching lib/actions.ts usage; no columns dropped, renamed, or retyped). Build passes: npm run build exits 0.
+ABM Signal Tracker with an added floating chat assistant that answers questions grounded in the full stored-signal dataset via an OpenAI-compatible chat API route.
 
 ## Features
 
-- ABM Signal Tracker dashboard title
-- CSV/XLSX company import with background analysis
-- Stored signals dashboard with tabs, charts, and KPIs
-- Arena email gating via middleware and provider
+- Floating bottom-right chat button that toggles a self-contained chat panel on every tab
+- Chat loads the FULL stored-signals dataset (paginated fetch of all rows) from the existing /api/all-stored-signals route and caches it as context
+- New /api/chat route calls an OpenAI-compatible LLM with the signal data as grounding context, reading the key from OPENAI_API_KEY (no hardcoded key)
+- Graceful handling when the API key is missing or the data fetch fails
+- Read-only chat — no database writes or data mutations
+- All existing tabs, components, routes, styles, and schema untouched
 
 ## Tech Stack
 
