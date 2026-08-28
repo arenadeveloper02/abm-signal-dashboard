@@ -1,21 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-28T06:34:47.238Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-28T06:57:11.139Z.
 
 ## Overview
 
-ABM Signal Tracker dashboard — fixed unclosed JSX in components/StoredSignalsDashboard.tsx so next build compiles with zero errors. No other behaviour, styling, schema, or API changes.
+ABM Signal Tracker dashboard — upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity. Fix: repaired the broken postcss.config.mjs (invalid/truncated token) that caused next/font to fail compiling app/layout.tsx during next build.
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 49
+**File count:** 48
 
 ## Features
 
-- Import Companies with mandatory company_name + website per row
-- View sample payload toggle with mandatory-fields note
-- Manual add with company name + website inputs
-- Stored signals dashboard with Overview, Companies, Signals, Trends, Insights tabs
-- Floating signal data chat assistant
+- Import Companies with company_name + website payload and Save & Analyse
+- Sample file toggle with mandatory-fields note
+- Manual add with name + website inputs
+- Stored signals dashboard with KPIs, charts and signal feed
+- Signal data chat assistant
 
 ## Tech Stack
 
@@ -124,14 +124,12 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `README.md`
 - `REPO_SUMMARY.md`
-- `VERIFICATION.md`
 
 ## Complete File Index
 
 - `.env.example`
 - `README.md`
 - `REPO_SUMMARY.md`
-- `VERIFICATION.md`
 - `app/access-denied/page.tsx`
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
@@ -180,7 +178,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-28T06:34:47.238Z
+- **Updated at:** 2026-08-28T06:57:11.139Z
 - **Request:** SCOPE LOCK — SURGICAL EDIT ONLY. Obey exactly. This is a small, targeted edit to the existing repo, NOT a regeneration. Do NOT modify, restyle, reformat, refactor, or 'improve' anything that already exists. NO design changes of any kind. Only make the three changes described below, and nothing else.
 
 GOAL: On the Import Companies screen (the import/upload flow with the 'Save & Analyse' action) and the 'Add a company manually' input, support a company WEBSITE alongside the company name, and add a button that reveals a sample file.
