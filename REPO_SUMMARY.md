@@ -1,21 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-28T06:57:11.139Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-28T08:09:53.189Z.
 
 ## Overview
 
-ABM Signal Tracker dashboard — upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity. Fix: repaired the broken postcss.config.mjs (invalid/truncated token) that caused next/font to fail compiling app/layout.tsx during next build.
+ABM Signal Tracker dashboard — upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity. Fix: added the missing tailwind.config.ts required by structure validation.
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 48
+**File count:** 49
 
 ## Features
 
-- Import Companies with company_name + website payload and Save & Analyse
-- Sample file toggle with mandatory-fields note
-- Manual add with name + website inputs
-- Stored signals dashboard with KPIs, charts and signal feed
-- Signal data chat assistant
+- Import companies via CSV/XLSX upload with company_name + website mandatory validation
+- Add a company manually with name and website inputs
+- Save & Analyse sends { company_name, website, ...passthrough } payloads to the analyse API
+- View sample button toggling a preformatted sample JSON payload
+- Stored signals dashboard with KPIs, company table and signal feed
+- Signal chat assistant grounded on stored signal data
 
 ## Tech Stack
 
@@ -124,12 +125,14 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `README.md`
 - `REPO_SUMMARY.md`
+- `VERIFICATION.md`
 
 ## Complete File Index
 
 - `.env.example`
 - `README.md`
 - `REPO_SUMMARY.md`
+- `VERIFICATION.md`
 - `app/access-denied/page.tsx`
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
@@ -178,7 +181,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-28T06:57:11.139Z
+- **Updated at:** 2026-08-28T08:09:53.189Z
 - **Request:** SCOPE LOCK — SURGICAL EDIT ONLY. Obey exactly. This is a small, targeted edit to the existing repo, NOT a regeneration. Do NOT modify, restyle, reformat, refactor, or 'improve' anything that already exists. NO design changes of any kind. Only make the three changes described below, and nothing else.
 
 GOAL: On the Import Companies screen (the import/upload flow with the 'Save & Analyse' action) and the 'Add a company manually' input, support a company WEBSITE alongside the company name, and add a button that reveals a sample file.
