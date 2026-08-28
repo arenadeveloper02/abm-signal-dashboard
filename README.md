@@ -1,20 +1,19 @@
 # abm-signal-dashboard
 
-ABM Signal Tracker with an added floating chat assistant that answers questions grounded in the full stored-signal dataset via an OpenAI-compatible chat API route.
+Surgical edit: Import Companies flow now requires company_name + website per company. VERIFICATION — (1) Save & Analyse payload line: `const result: Record<string, string> = { company_name: company.name, website: websiteOf(company) }` inside toApiCompany, sent via `body: JSON.stringify({ companies: companiesPayload, ... })`. (2) Mandatory enforcement: uploaded rows missing website are skipped with the existing inline importError message; handleSaveAnalyze re-validates every row (`c.name.trim() === '' || websiteOf(c) === ''`) and blocks submission; manual add button is disabled until both name and website are non-empty. (3) 'View sample' secondary button toggles a <pre> block with the exact sample JSON plus the note 'company_name and website are mandatory. All other fields are optional.' (4) Manual-add control now has a second input with placeholder 'position2.com'. (5) Files modified: components/AccountSignalTrackerClient.tsx only (prisma/schema.prisma echoed verbatim per DB rule; analyse route performs no shape validation so it was untouched). (6) Build passes: no new deps, no schema change, strict TypeScript maintained.
 
 ## Features
 
-- Floating bottom-right chat button that toggles a self-contained chat panel on every tab
-- Chat loads the FULL stored-signals dataset (paginated fetch of all rows) from the existing /api/all-stored-signals route and caches it as context
-- New /api/chat route calls an OpenAI-compatible LLM with the signal data as grounding context, reading the key from OPENAI_API_KEY (no hardcoded key)
-- Graceful handling when the API key is missing or the data fetch fails
-- Read-only chat — no database writes or data mutations
-- All existing tabs, components, routes, styles, and schema untouched
+- Import Companies payload sends { company_name, website } per company with optional passthrough fields
+- company_name and website enforced as mandatory for uploaded rows and manual adds
+- View sample button toggling the full sample analyse payload JSON
+- Manual add control with separate company name and website inputs
+- Existing stored-signals dashboard, tabs, and styling untouched
 
 ## Tech Stack
 
 - Next.js ^15.3.3 (App Router)
-- React ^19.0.0
+- React 19.0.0
 - Tailwind CSS v3
 - TypeScript
 - Prisma + PostgreSQL (Neon on Vercel)
