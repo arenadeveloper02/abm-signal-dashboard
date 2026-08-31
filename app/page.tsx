@@ -1,14 +1,12 @@
-import DashboardClient from '@/components/DashboardClient'
+import AccountSignalTrackerClient from '@/components/AccountSignalTrackerClient'
 import ChatWidget from '@/components/ChatWidget'
-import { getArenaEmailId } from '@/lib/arena-email'
 
 export const dynamic = 'force-dynamic'
 
-export default async function HomePage() {
-  const emailId = await getArenaEmailId()
+export default function HomePage() {
   return (
     <>
-      <DashboardClient defaultEmail={emailId ?? ''} />
+      <AccountSignalTrackerClient />
       <ChatWidget />
     </>
   )
