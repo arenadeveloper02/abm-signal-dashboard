@@ -10,20 +10,64 @@ function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, '')
 }
 
-const KNOWN_COLUMNS = ['website', 'industry', 'city', 'state', 'country']
+const COLUMN_ALIASES: Record<string, string> = {
+  website: 'website',
+  industry: 'industry',
+  city: 'company_city',
+  companycity: 'company_city',
+  state: 'company_state',
+  companystate: 'company_state',
+  country: 'company_country',
+  companycountry: 'company_country',
+  employees: 'employees',
+  linkedin: 'company_linkedin_url',
+  linkedinurl: 'company_linkedin_url',
+  companylinkedinurl: 'company_linkedin_url',
+  accountowner: 'account_owner',
+  accountstage: 'account_stage',
+}
 
 function toApiCompany(company: ParsedCompany): Record<string, string> {
   const result: Record<string, string> = { company_name: company.name }
   Object.keys(company.raw).forEach((key) => {
     const normalized = normalizeKey(key)
-    if (normalized === 'company' || normalized === 'companyname') return
+    if (normalized === 'company' || normalized === 'companyname' || normalized === 'name') return
     const value = company.raw[key]
     if (value === undefined) return
-    const known = KNOWN_COLUMNS.find((col) => normalizeKey(col) === normalized)
-    result[known ?? key] = value
+    const mapped = COLUMN_ALIASES[normalized]
+    result[mapped ?? key] = value
   })
   return result
 }
+
+function websiteOf(company: ParsedCompany): string {
+  const key = Object.keys(company.raw).find((k) => normalizeKey(k) === 'website')
+  if (!key) return ''
+  const value = company.raw[key]
+  return value === undefined ? '' : value.trim()
+}
+
+const SAMPLE_PAYLOAD = `{
+  "companies": [
+    {
+      "company_name": "Position2",
+      "website": "position2.com",
+      "industry": "Marketing Services",
+      "company_city": "Santa Clara",
+      "company_state": "CA",
+      "company_country": "United States",
+      "employees": "250",
+      "company_linkedin_url": "https://www.linkedin.com/company/position2",
+      "account_owner": "Sakshi Mishra",
+      "account_stage": "Customer"
+    }
+  ],
+  "signalTypes": "funding,csuite,product,partnership",
+  "lookbackDays": 90,
+  "batchSize": 10,
+  "fileName": "my-batch-label",
+  "skipIfRunToday": false
+}`
 
 type AnalyzePayload = Partial<AnalyzeResult> & { error?: string; missing?: string[] }
 
@@ -72,6 +116,15 @@ type ViewMode = 'dashboard' | 'import'
 
 const MAX_VISIBLE_ROWS = 100
 
+const inputCls =
+  'rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#8A8D99] focus:border-[#1A73E8] focus:outline-none'
+
+const secondaryBtnCls =
+  'rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-medium text-[#2C2D33] transition-colors hover:bg-[#F7F8F9]'
+
+const primaryBtnCls =
+  'rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60'
+
 export default function AccountSignalTrackerClient() {
   const [view, setView] = useState<ViewMode>('dashboard')
   const [storedResult, setStoredResult] = useState<StoredSignalsResult | null>(null)
@@ -79,9 +132,11 @@ export default function AccountSignalTrackerClient() {
   const [loadingStored, setLoadingStored] = useState(true)
   const [importList, setImportList] = useState<ParsedCompany[]>([])
   const [typedCompany, setTypedCompany] = useState('')
+  const [typedWebsite, setTypedWebsite] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [fileName, setFileName] = useState('')
+  const [showSample, setShowSample] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const idCounter = useRef(0)
@@ -176,14 +231,18 @@ export default function AccountSignalTrackerClient() {
         const keys = Object.keys(row)
         const companyKey = keys.find((k) => {
           const n = normalizeKey(k)
-          return n === 'company' || n === 'companyname'
+          return n === 'company' || n === 'companyname' || n === 'name'
         })
         if (!companyKey) return
         const name = String(row[companyKey]).trim()
         if (!name) return
-        const locationParts = ['city', 'state', 'country']
-          .map((target) => {
-            const key = keys.find((k) => normalizeKey(k) === target)
+        const locationParts = [
+          ['city', 'companycity'],
+          ['state', 'companystate'],
+          ['country', 'companycountry'],
+        ]
+          .map((targets) => {
+            const key = keys.find((k) => targets.includes(normalizeKey(k)))
             return key ? String(row[key]).trim() : ''
           })
           .filter((part) => part !== '')
@@ -200,7 +259,7 @@ export default function AccountSignalTrackerClient() {
       })
       if (parsed.length === 0) {
         setImportError(
-          'No company names were found. Expected a column named Company, Company_Name or Company Name.'
+          'No company names were found. Expected a column named Company, Company_Name, Company Name or Name.'
         )
         return
       }
@@ -221,14 +280,19 @@ export default function AccountSignalTrackerClient() {
 
   const handleAddTyped = () => {
     const rawInput = typedCompany.trim()
-    if (rawInput === '') return
+    const websiteInput = typedWebsite.trim()
+    if (rawInput === '' && websiteInput === '') return
+    if (rawInput === '' || websiteInput === '') {
+      setImportError('Both company name and website are required to add a company.')
+      return
+    }
     const parts = rawInput
       .split(',')
       .map((p) => p.trim())
       .filter((p) => p !== '')
     const name = parts[0] ?? ''
     if (name === '') return
-    const raw: Record<string, string> = { Company: name }
+    const raw: Record<string, string> = { Company: name, Website: websiteInput }
     if (parts[1]) raw['City'] = parts[1]
     if (parts[2]) raw['State'] = parts[2]
     if (parts[3]) raw['Country'] = parts[3]
@@ -241,6 +305,7 @@ export default function AccountSignalTrackerClient() {
       },
     ])
     setTypedCompany('')
+    setTypedWebsite('')
     setImportError(null)
   }
 
@@ -299,6 +364,18 @@ export default function AccountSignalTrackerClient() {
       setImportError('Add at least one company before running analysis.')
       return
     }
+    const invalidRows = importList.filter((c) => c.name.trim() === '' || websiteOf(c) === '')
+    if (invalidRows.length > 0) {
+      const names = invalidRows
+        .slice(0, 5)
+        .map((c) => (c.name.trim() !== '' ? c.name : '(unnamed row)'))
+        .join(', ')
+      setImportError(
+        `company_name and website are mandatory. ${invalidRows.length} row${invalidRows.length === 1 ? ' is' : 's are'} missing a website: ${names}${invalidRows.length > 5 ? '\u2026' : ''}. Add a website column or remove these rows before running analysis.`
+      )
+      return
+    }
+    setImportError(null)
     const companiesPayload = importList.map((c) => toApiCompany(c))
     const analyzeFileName = fileName !== '' ? fileName : 'imported-companies'
     void runAnalyzeInBackground(companiesPayload, analyzeFileName)
@@ -325,7 +402,7 @@ export default function AccountSignalTrackerClient() {
                   setImportError(null)
                   setView('import')
                 }}
-                className="rounded-xl border border-[#1A73E8] bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA]"
+                className={secondaryBtnCls}
               >
                 Import Companies
               </button>
@@ -333,7 +410,7 @@ export default function AccountSignalTrackerClient() {
                 type="button"
                 onClick={() => void fetchAllStored()}
                 disabled={loadingStored}
-                className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-semibold text-[#2C2D33] transition-colors hover:bg-[#F7F8F9] disabled:opacity-60"
+                className={primaryBtnCls}
               >
                 {loadingStored ? 'Refreshing\u2026' : 'Refresh Dashboard'}
               </button>
@@ -342,8 +419,11 @@ export default function AccountSignalTrackerClient() {
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setView('dashboard')}
-                className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-semibold text-[#2C2D33] transition-colors hover:bg-[#F7F8F9]"
+                onClick={() => {
+                  setImportError(null)
+                  setView('dashboard')
+                }}
+                className={secondaryBtnCls}
               >
                 Back to Dashboard
               </button>
@@ -351,30 +431,40 @@ export default function AccountSignalTrackerClient() {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {view === 'dashboard' ? (
-          loadingStored ? (
-            <DashboardSkeleton />
-          ) : storedError ? (
-            <div className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center" role="alert">
-              <p className="text-3xl" aria-hidden="true">\u26a0\ufe0f</p>
-              <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load stored signals</p>
-              <p className="mt-1 text-xs text-[#575A66]">{storedError}</p>
+
+      {view === 'import' ? (
+        <main className="mx-auto max-w-5xl px-4 py-6">
+          <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Import Companies">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-[#2C2D33]">Import Companies</h2>
               <button
                 type="button"
-                onClick={() => void fetchAllStored()}
-                className="mt-4 rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA]"
+                onClick={() => setShowSample((v) => !v)}
+                className={`ml-auto ${secondaryBtnCls}`}
               >
-                Retry
+                {showSample ? 'Hide sample' : 'View sample'}
               </button>
             </div>
-          ) : storedResult ? (
-            <StoredSignalsDashboard result={storedResult} />
-          ) : null
-        ) : (
-          <div className="space-y-6">
-            <section
-              aria-label="Upload company list"
+
+            {showSample && (
+              <div className="mt-3 rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] p-4">
+                <pre className="overflow-x-auto whitespace-pre text-xs leading-relaxed text-[#2C2D33]">{SAMPLE_PAYLOAD}</pre>
+                <p className="mt-2 text-xs text-[#6D717F]">
+                  company_name and website are mandatory. All other fields are optional.
+                </p>
+              </div>
+            )}
+
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  fileInputRef.current?.click()
+                }
+              }}
               onDragOver={(e) => {
                 e.preventDefault()
                 setIsDragging(true)
@@ -385,39 +475,33 @@ export default function AccountSignalTrackerClient() {
                 setIsDragging(false)
                 handleFiles(e.dataTransfer.files)
               }}
-              className={`rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
-                isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#E2E3E5] bg-white'
+              className={`mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#E2E3E5] bg-[#F7F8F9]'
               }`}
             >
-              <p className="text-sm font-semibold text-[#2C2D33]">Drag &amp; drop a CSV or XLSX file here</p>
-              <p className="mt-1 text-xs text-[#8A8D99]">
-                Expected a column named Company, Company_Name or Company Name. Optional: Website, Industry, City, State, Country.
+              <span className="text-2xl" aria-hidden="true">
+                {'\uD83D\uDCC4'}
+              </span>
+              <p className="mt-2 text-sm font-medium text-[#2C2D33]">
+                Drag &amp; drop a CSV or XLSX file, or click to browse
               </p>
-              <div className="mt-4 flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA]"
-                >
-                  Browse files
-                </button>
-                {fileName !== '' && <span className="text-xs text-[#575A66]">{fileName}</span>}
-              </div>
+              <p className="mt-1 text-xs text-[#6D717F]">
+                Required columns: company_name (or Company / Name) and website
+              </p>
+              {fileName !== '' && <p className="mt-2 text-xs font-medium text-[#1A73E8]">{fileName}</p>}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".csv,.xlsx"
                 className="hidden"
-                aria-label="Upload company file"
-                onChange={(e) => {
-                  handleFiles(e.target.files)
-                  e.target.value = ''
-                }}
+                aria-label="Upload company list"
+                onChange={(e) => handleFiles(e.target.files)}
               />
-            </section>
-            <section aria-label="Add a company manually" className="rounded-2xl border border-[#E2E3E5] bg-white p-5">
-              <h2 className="text-sm font-semibold text-[#575A66]">Add a company manually</h2>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs font-medium text-[#575A66]">Add a company manually</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input
                   type="text"
                   value={typedCompany}
@@ -425,92 +509,139 @@ export default function AccountSignalTrackerClient() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAddTyped()
                   }}
-                  placeholder="Company, City, State, Country"
-                  aria-label="Company name and location"
-                  className="w-full max-w-md rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#8A8D99] focus:border-[#1A73E8] focus:outline-none"
+                  placeholder="Company name"
+                  aria-label="Company name"
+                  className={`w-56 ${inputCls}`}
                 />
-                <button
-                  type="button"
-                  onClick={handleAddTyped}
-                  className="rounded-xl border border-[#E2E3E5] bg-white px-4 py-2 text-sm font-semibold text-[#2C2D33] transition-colors hover:bg-[#F7F8F9]"
-                >
+                <input
+                  type="text"
+                  value={typedWebsite}
+                  onChange={(e) => setTypedWebsite(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddTyped()
+                  }}
+                  placeholder="position2.com"
+                  aria-label="Company website"
+                  className={`w-56 ${inputCls}`}
+                />
+                <button type="button" onClick={handleAddTyped} className={primaryBtnCls}>
                   Add
                 </button>
               </div>
-            </section>
+            </div>
+
             {importError && (
-              <div className="rounded-xl border border-[#F31A1A]/40 bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]" role="alert">
+              <p
+                className="mt-3 rounded-xl border border-[#F31A1A]/40 bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]"
+                role="alert"
+              >
                 {importError}
+              </p>
+            )}
+
+            {importList.length > 0 && (
+              <div className="mt-4 overflow-hidden rounded-xl border border-[#E2E3E5]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#F7F8F9] text-xs text-[#575A66]">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Company</th>
+                      <th className="px-3 py-2 font-medium">Website</th>
+                      <th className="px-3 py-2 font-medium">Location</th>
+                      <th className="px-3 py-2 text-right font-medium">Remove</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((c) => (
+                      <tr key={c.id} className="border-t border-[#E2E3E5]">
+                        <td className="px-3 py-2 text-[#2C2D33]">{c.name}</td>
+                        <td className="px-3 py-2 text-[#575A66]">
+                          {websiteOf(c) !== '' ? (
+                            websiteOf(c)
+                          ) : (
+                            <span className="font-medium text-[#F31A1A]">missing</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-[#575A66]">{c.location !== '' ? c.location : '\u2014'}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(c.id)}
+                            className="text-xs font-medium text-[#F31A1A] hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {importList.length > MAX_VISIBLE_ROWS && (
+                  <p className="border-t border-[#E2E3E5] bg-[#F7F8F9] px-3 py-2 text-xs text-[#6D717F]">
+                    Showing first {MAX_VISIBLE_ROWS} of {importList.length} companies.
+                  </p>
+                )}
               </div>
             )}
-            <section aria-label="Companies to analyze" className="rounded-2xl border border-[#E2E3E5] bg-white p-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-sm font-semibold text-[#575A66]">
-                  Companies to analyze ({importList.length})
-                </h2>
-                <button
-                  type="button"
-                  onClick={handleSaveAnalyze}
-                  disabled={importList.length === 0}
-                  className="ml-auto rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
-                >
-                  Save &amp; Analyze
-                </button>
-              </div>
-              {importList.length === 0 ? (
-                <p className="mt-4 text-sm text-[#8A8D99]">No companies added yet. Upload a file or add one manually.</p>
-              ) : (
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-[#E2E3E5] text-xs uppercase tracking-wide text-[#8A8D99]">
-                        <th className="px-2 py-2 font-medium">Company</th>
-                        <th className="px-2 py-2 font-medium">Location</th>
-                        <th className="px-2 py-2 font-medium" aria-label="Actions" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleRows.map((c) => (
-                        <tr key={c.id} className="border-b border-[#F0F1F2]">
-                          <td className="px-2 py-2 font-medium text-[#2C2D33]">{c.name}</td>
-                          <td className="px-2 py-2 text-[#575A66]">{c.location !== '' ? c.location : '\u2014'}</td>
-                          <td className="px-2 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleRemove(c.id)}
-                              className="text-xs font-medium text-[#F31A1A] hover:underline"
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {importList.length > MAX_VISIBLE_ROWS && (
-                    <p className="mt-2 text-xs text-[#8A8D99]">
-                      Showing first {MAX_VISIBLE_ROWS} of {importList.length} companies. All will be analyzed.
-                    </p>
-                  )}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-      </main>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={handleSaveAnalyze} className={primaryBtnCls}>
+                Save &amp; Analyse
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setImportError(null)
+                  setView('dashboard')
+                }}
+                className={secondaryBtnCls}
+              >
+                Cancel
+              </button>
+              <span className="ml-auto text-xs text-[#6D717F]">
+                {importList.length} compan{importList.length === 1 ? 'y' : 'ies'} ready
+              </span>
+            </div>
+          </section>
+        </main>
+      ) : (
+        <main className="mx-auto max-w-7xl px-4 py-6">
+          {loadingStored ? (
+            <DashboardSkeleton />
+          ) : storedError ? (
+            <div
+              className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center"
+              role="alert"
+            >
+              <p className="text-3xl" aria-hidden="true">
+                {'\u26A0\uFE0F'}
+              </p>
+              <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load dashboard data</p>
+              <p className="mt-1 text-xs text-[#6D717F]">{storedError}</p>
+              <button type="button" onClick={() => void fetchAllStored()} className={`mt-4 ${primaryBtnCls}`}>
+                Retry
+              </button>
+            </div>
+          ) : storedResult ? (
+            <StoredSignalsDashboard result={storedResult} />
+          ) : null}
+        </main>
+      )}
+
       {toast && (
         <div
-          className="fixed bottom-4 right-4 z-50 flex max-w-md items-start gap-3 rounded-xl border border-[#E2E3E5] bg-white px-4 py-3 shadow-lg"
+          className="fixed bottom-4 left-1/2 z-50 w-[92%] max-w-xl -translate-x-1/2 rounded-xl border border-[#E2E3E5] bg-white px-4 py-3 shadow-lg"
           role="status"
         >
-          <p className="text-sm text-[#2C2D33]">{toast}</p>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="text-xs font-semibold text-[#1A73E8] hover:underline"
-          >
-            Dismiss
-          </button>
+          <div className="flex items-start gap-3">
+            <p className="text-sm text-[#2C2D33]">{toast}</p>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="ml-auto shrink-0 text-xs font-medium text-[#1A73E8] hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
     </div>

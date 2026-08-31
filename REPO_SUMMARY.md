@@ -1,26 +1,26 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-27T08:25:09.348Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-31T07:04:18.365Z.
 
 ## Overview
 
-ABM Signal Tracker dashboard with stored-signal analytics tabs and a floating AI chat assistant grounded in the full signal dataset.
+ABM Signal Tracker dashboard for uploading company lists and tracking funding, C-suite, product and partnership signals.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 49
 
 ## Features
 
-- Stored signals dashboard with Overview, Companies, Signals, Trends and Insights tabs
-- KPI cards, weekly trend, severity mix, type breakdown and industry charts
-- Company table with expandable signal history
-- Floating chat assistant grounded in all signal data via /api/chat
-- CSV/XLSX company import with background analysis
+- Stored signals dashboard with KPI cards, charts and filterable feed
+- Import companies via CSV/XLSX with company_name + website payload
+- View sample payload button on the import screen
+- Manual company add with name and website inputs
+- Floating signal data chat assistant
 
 ## Tech Stack
 
-- Next.js ^15.3.3 (App Router)
-- React ^19.0.0
+- Next.js 16.2.12 (App Router)
+- React 19.0.0
 - Tailwind CSS v3
 - TypeScript
 - Prisma + PostgreSQL (Neon on Vercel)
@@ -37,6 +37,25 @@ ABM Signal Tracker dashboard with stored-signal analytics tabs and a floating AI
 ## Database Models
 
 - `AppSetting`
+
+## Prisma Schema — STRICT: NEVER DROP OR DELETE COLUMNS
+
+This section is binding on every edit. Vercel deploy runs `prisma db push` with **NO** `--accept-data-loss`. Dropping or altering a live column **fails the deploy**.
+
+**FORBIDDEN (non-negotiable):**
+- Do **not** delete, drop, omit, rename, or retype ANY existing column in `prisma/schema.prisma`
+- Do **not** drop models or tables
+- Do **not** "clean up", "simplify", or regenerate the schema from memory or from this summary
+- Do **not** remove `createdAt` / `updatedAt` (or any other listed field) even if the UI no longer uses it
+
+**ALLOWED:**
+- ADD new models, columns, relations, or enums only
+- New columns on existing models MUST be optional (`?`) or have `@default(...)`
+- If the UI no longer needs a field, stop reading it in code — leave the column in the schema unchanged
+
+**Immutable columns (must remain identical — same name, same type):**
+
+- `AppSetting`: `key String`, `value String`, `createdAt DateTime`, `updatedAt DateTime`
 
 ## File Inventory
 
@@ -161,35 +180,57 @@ ABM Signal Tracker dashboard with stored-signal analytics tabs and a floating AI
 
 ## Latest Change
 
-- **Updated at:** 2026-08-27T08:25:09.348Z
-- **Request:** SCOPE LOCK — ADDITIVE FEATURE ONLY. Obey exactly. This is a SURGICAL, PURELY ADDITIVE EDIT to the existing repo, NOT a regeneration. Do NOT modify, restyle, reformat, or 'improve' anything that already exists. Only ADD the new files/wiring described below.
+- **Updated at:** 2026-08-31T07:04:18.365Z
+- **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
-GOAL: Add a small floating CHAT button (bottom-right, a circular blue button with a chat/message icon — match the mock the user provided) that opens a chat window. In that chat, the user can ask questions about ALL the signal data. The chat must have the FULL data as context: it calls the same all-signals data API the dashboard already uses (fetch ALL rows, not just the current paginated page) and grounds its answers in that data.
+Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
-IMPLEMENTATION (add only, do not touch existing components/tabs/pages except to MOUNT the button once):
-1) Floating button:
-   - A fixed-position circular button, bottom-right (e.g. bottom-6 right-6, z-50), blue background, white chat/message icon (reuse lucide-react MessageSquare/MessageCircle which is already available; if not present, use an inline SVG — do NOT add a new dependency).
-   - Small footprint. Does not overlap or alter any existing content. Clicking it toggles the chat window open/closed.
-2) Chat window/panel:
-   - Opens as a floating panel anchored above the button (e.g. fixed bottom-right card, ~380px wide, ~520px tall, rounded, shadow, scrollable message list, input box + send button, and a close 'X'). Keep styling consistent with the existing dashboard theme, but this is a NEW self-contained component — do not restyle anything else.
-   - On first open, load the FULL dataset as context: call the SAME data source the dashboard already uses for stored signals (the all-stored-signals data API / route already in the app). Fetch ALL signals (loop pagination or request the full set) so the assistant has complete context. Show a small 'Loading data…' state while fetching. Cache it so it is not re-fetched on every message.
-   - Chat behavior: user types a question; send the question PLUS the loaded signal data as context to an LLM chat endpoint and stream/return the answer into the message list. 
-3) Chat backend route (ADD a NEW API route only — do not modify existing routes):
-   - Add a new route (e.g. app/api/chat/route.ts) that accepts { messages, context } (or fetches the signal data server-side) and calls an LLM. Use an OpenAI-compatible call reading the API key from an environment variable (e.g. process.env.OPENAI_API_KEY) — DO NOT hardcode any key. If the env key is missing, return a graceful message like 'Chat is not configured (missing API key).' instead of crashing.
-   - The system prompt should instruct the model: you are an assistant for the ABM Signal Tracker; answer ONLY using the provided signal data context; if the answer is not in the data, say so; be concise. Include the signal data (companies, signals, categories, alerts, totals) in the context.
-   - Do NOT change the existing all-signals/stored-signals route or its response shape — the chat route may CALL it or reuse its data-fetching helper, but must not alter it.
-4) Mounting: mount the floating chat button component ONCE at the top level of the dashboard page/layout so it appears on every tab, WITHOUT changing any tab's content or layout. This should be a single added <ChatWidget /> line — nothing else in that file changes.
+Changes to implement:
 
-STRICT RULES:
-- Do NOT change any existing tab (Overview, Signals, Trends, Companies, Insights), any existing component's markup/styling, KPI values, charts, the Recent Signals card, headers, the Import screen, lib/ existing files, prisma/schema.prisma, package.json build script (`prisma db push --accept-data-loss` MUST remain), next.config, or globals.css. The ONLY allowed edit to an existing file is adding the single <ChatWidget /> mount line.
-- Do NOT add npm dependencies. Use fetch + built-in APIs + existing lucide-react icons only. If an OpenAI SDK is not already installed, call the OpenAI REST endpoint with fetch instead of adding a package.
-- Do NOT modify existing API routes or the data model. New route file(s) and new component file(s) only.
-- Do NOT break the build. Handle missing API key and empty data gracefully.
-- The chat is READ-ONLY over the data (answers questions); it must NOT write to the database or mutate any data.
+1. Import Companies — "Save & Analyse" API payload must include the company website.
+   Today each company is sent with a name only. Change it so every company object in the request body is sent as:
+   {
+     "companies": [
+       { "company_name": "Position2", "website": "position2.com" }
+     ]
+   }
+   - company_name and website are BOTH MANDATORY. A company row missing either field must be rejected before the request is sent, using the existing inline error/toast mechanism already present on that screen. Do not introduce a new error UI style.
+   - Any additional supported per-company fields present in the uploaded file must be passed through unchanged in the same company object: industry, company_city, company_state, company_country, employees, company_linkedin_url, account_owner, account_stage.
+   - Existing top-level fields must keep working exactly as they do today: signalTypes, lookbackDays, batchSize, fileName, skipIfRunToday.
+   - File parsing (CSV/XLSX) must accept the company_name and website columns. Where an existing 'name' key is already handled, keep accepting it by mapping it to company_name. Do not restructure the parser.
 
-VERIFICATION (print at the end):
-- Confirm a NEW floating chat button renders bottom-right on every tab and opens/closes a chat window.
-- Confirm the chat, on open, fetches the FULL signal dataset (all rows, all companies) from the existing data API and uses it as context.
-- Confirm a NEW app/api/chat route was added that calls an LLM using an ENV var key (no hardcoded key) and grounds answers in the signal data, with graceful handling when the key is missing.
-- Confirm NO existing tab/component/style/KPI/chart/route/schema was changed except the single <ChatWidget /> mount line — list every file ADDED and every file MODIFIED (modified list should be exactly the one mount file).
-- Confirm `npm run build` exits 0.
+2. Import Companies — add a button that shows the sample file format.
+   - Add ONE button in the Import Companies area, labelled "View sample". Reuse the exact button component and styling already used in that area — no new styles, no new component library, no modal library.
+   - Clicking it toggles a read-only block showing this exact sample payload:
+   {
+     "companies": [
+       {
+         "company_name": "Position2",
+         "website": "position2.com",
+         "industry": "Marketing Services",
+         "company_city": "Santa Clara",
+         "company_state": "CA",
+         "company_country": "United States",
+         "employees": "250",
+         "company_linkedin_url": "https://www.linkedin.com/company/position2",
+         "account_owner": "Sakshi Mishra",
+         "account_stage": "Customer"
+       }
+     ],
+     "signalTypes": "funding,csuite,product,partnership",
+     "lookbackDays": 90,
+     "batchSize": 10,
+     "fileName": "my-batch-label",
+     "skipIfRunToday": false
+   }
+   - Below the sample, show this line: "company_name and website are mandatory. All other fields are optional."
+
+3. "Add a company manually" — add a website input.
+   - Alongside the existing company name input, add a second text input for the company website (placeholder: position2.com). Reuse the same input component and the same add button already present.
+   - Both name and website are required to add a row; the added row must carry { company_name, website } so it submits correctly with the payload in change 1.
+
+Only touch the files/functions directly related to the points above.
+Do not change variable names, code style, or structure outside the scope of these changes.
+Do not add extra features, optimizations, or refactors that weren't requested.
+If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
+After implementing, list exactly which files and lines were changed, and why.

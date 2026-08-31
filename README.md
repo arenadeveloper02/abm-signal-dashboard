@@ -1,20 +1,20 @@
 # abm-signal-dashboard
 
-ABM Signal Tracker with an added floating chat assistant that answers questions grounded in the full stored-signal dataset via an OpenAI-compatible chat API route.
+Edited abm-signal-dashboard. Changed files: components/AccountSignalTrackerClient.tsx — (1) toApiCompany now emits { company_name, website, ...optional fields } with column aliases mapping city/state/country/linkedin variants to company_city/company_state/company_country/company_linkedin_url plus industry/employees/account_owner/account_stage pass-through; parser additionally accepts 'name' and 'company_name' columns and reads location from company_city/company_state/company_country aliases; handleSaveAnalyze rejects rows missing company_name or website via the existing importError inline mechanism before sending. (2) Added a 'View sample' toggle button (same button styling as the import area) revealing a read-only sample payload block with the mandatory-fields note. (3) 'Add a company manually' gained a required website input (placeholder position2.com) using the same input styling; manual rows now carry Company + Website in raw so they submit as { company_name, website }. prisma/schema.prisma — returned verbatim, untouched (no columns added, edited, or dropped).
 
 ## Features
 
-- Floating bottom-right chat button that toggles a self-contained chat panel on every tab
-- Chat loads the FULL stored-signals dataset (paginated fetch of all rows) from the existing /api/all-stored-signals route and caches it as context
-- New /api/chat route calls an OpenAI-compatible LLM with the signal data as grounding context, reading the key from OPENAI_API_KEY (no hardcoded key)
-- Graceful handling when the API key is missing or the data fetch fails
-- Read-only chat — no database writes or data mutations
-- All existing tabs, components, routes, styles, and schema untouched
+- Save & Analyse payload sends company_name and website (both mandatory) per company
+- Optional per-company fields passed through: industry, company_city, company_state, company_country, employees, company_linkedin_url, account_owner, account_stage
+- CSV/XLSX parser accepts company_name, Company, Company Name, Name and website columns
+- View sample button toggles the exact sample request payload with mandatory-fields note
+- Manual company entry requires both name and website inputs
+- Inline validation error shown before the analyze request is sent
 
 ## Tech Stack
 
-- Next.js ^15.3.3 (App Router)
-- React ^19.0.0
+- Next.js 16.2.12 (App Router)
+- React 19.0.0
 - Tailwind CSS v3
 - TypeScript
 - Prisma + PostgreSQL (Neon on Vercel)
