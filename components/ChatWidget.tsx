@@ -15,6 +15,8 @@ interface ChatApiResponse {
 }
 
 const MAX_CONTEXT_CHARS = 350000
+const HISTORY_STORAGE_KEY = 'abm-signal-chat-history'
+const MAX_STORED_MESSAGES = 40
 
 function buildContext(result: StoredSignalsResult): string {
   const companies = (result.companies ?? []).map((c) => ({
@@ -53,6 +55,40 @@ function buildContext(result: StoredSignalsResult): string {
     str = str.slice(0, MAX_CONTEXT_CHARS)
   }
   return str
+}
+
+function loadStoredHistory(): ChatMessage[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.sessionStorage.getItem(HISTORY_STORAGE_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    const out: ChatMessage[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const role = (item as { role?: unknown }).role
+      const content = (item as { content?: unknown }).content
+      if ((role === 'user' || role === 'assistant') && typeof content === 'string' && content.trim() !== '') {
+        out.push({ role, content })
+      }
+    }
+    return out.slice(-MAX_STORED_MESSAGES)
+  } catch {
+    return []
+  }
+}
+
+function saveStoredHistory(messages: ChatMessage[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(
+      HISTORY_STORAGE_KEY,
+      JSON.stringify(messages.slice(-MAX_STORED_MESSAGES))
+    )
+  } catch {
+    // ignore quota / private-mode failures
+  }
 }
 
 function ChatIcon() {
@@ -95,6 +131,7 @@ function CloseIcon() {
 export default function ChatWidget() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [historyReady, setHistoryReady] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loadingData, setLoadingData] = useState(false)
@@ -102,6 +139,16 @@ export default function ChatWidget() {
   const contextRef = useRef<string | null>(null)
   const loadPromiseRef = useRef<Promise<string> | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setMessages(loadStoredHistory())
+    setHistoryReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!historyReady) return
+    saveStoredHistory(messages)
+  }, [messages, historyReady])
 
   useEffect(() => {
     const list = listRef.current
@@ -141,10 +188,18 @@ export default function ChatWidget() {
     }
   }
 
+  const handleClearHistory = () => {
+    setMessages([])
+    saveStoredHistory([])
+  }
+
   const handleSend = async () => {
     const question = input.trim()
     if (question === '' || sending) return
-    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: question }]
+    // Full conversation history + new user turn — sent for follow-ups
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: question }].slice(
+      -MAX_STORED_MESSAGES
+    )
     setMessages(nextMessages)
     setInput('')
     setSending(true)
@@ -158,7 +213,10 @@ export default function ChatWidget() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages, context: ctx }),
+        body: JSON.stringify({
+          messages: nextMessages,
+          context: ctx,
+        }),
       })
       let json: ChatApiResponse = {}
       try {
@@ -168,12 +226,14 @@ export default function ChatWidget() {
       }
       const reply =
         json.reply ?? json.error ?? 'Sorry, I could not get an answer right now. Please try again.'
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply }].slice(-MAX_STORED_MESSAGES))
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: 'Could not reach the chat API. Please try again.' },
-      ])
+      setMessages((prev) =>
+        [
+          ...prev,
+          { role: 'assistant' as const, content: 'Could not reach the chat API. Please try again.' },
+        ].slice(-MAX_STORED_MESSAGES)
+      )
     } finally {
       setSending(false)
     }
@@ -195,11 +255,21 @@ export default function ChatWidget() {
               <p className="text-sm font-semibold text-white">Signal Assistant</p>
               <p className="truncate text-[11px] text-white/80">Ask about your ABM signal data</p>
             </div>
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearHistory}
+                aria-label="Clear chat history"
+                className="rounded-lg px-2 py-1 text-[11px] font-medium text-white/90 transition-colors hover:bg-white/15"
+              >
+                Clear
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close chat"
-              className="ml-auto rounded-lg p-1.5 text-white/90 transition-colors hover:bg-white/15"
+              className="rounded-lg p-1.5 text-white/90 transition-colors hover:bg-white/15"
             >
               <CloseIcon />
             </button>

@@ -4,7 +4,12 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const MAX_CONTEXT_CHARS = 300000
-const MAX_HISTORY = 12
+const MAX_HISTORY = 40
+
+function getApiKey(): string {
+  const fromEnv = process.env.OPENAI_API_KEY
+  return fromEnv && fromEnv.length > 0 ? fromEnv : ''
+}
 
 interface IncomingMessage {
   role: 'user' | 'assistant'
@@ -23,7 +28,7 @@ function parseMessages(raw: unknown): IncomingMessage[] {
     const role = item.role
     const content = item.content
     if ((role === 'user' || role === 'assistant') && typeof content === 'string' && content.trim() !== '') {
-      out.push({ role, content })
+      out.push({ role, content: content.slice(0, 8000) })
     }
   }
   return out.slice(-MAX_HISTORY)
@@ -42,7 +47,7 @@ function extractReply(raw: unknown): string | null {
 }
 
 const SYSTEM_PROMPT =
-  'You are an assistant for the ABM Signal Tracker dashboard. Answer questions ONLY using the provided signal data context (companies, signals, signal families, alerts, categories, and totals). If the answer is not present in the data, clearly say the data does not contain that information. Be concise and factual. Do not invent companies, numbers, dates, or signals that are not in the context.'
+  'You are an assistant for the ABM Signal Tracker dashboard. Answer questions ONLY using the provided signal data context (companies, signals, signal families, alerts, categories, and totals) and the conversation history. Use earlier messages in this chat to resolve follow-ups (e.g. "those companies", "what about funding", "and the high alerts?"). If the answer is not present in the data, clearly say the data does not contain that information. Be concise and factual. Do not invent companies, numbers, dates, or signals that are not in the context.'
 
 export async function POST(request: Request) {
   let body: unknown = {}
@@ -62,7 +67,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply: 'Please ask a question about your signal data.' })
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = getApiKey()
   if (!apiKey || apiKey.length === 0) {
     return NextResponse.json({
       reply: 'Chat is not configured (missing API key). Add OPENAI_API_KEY to the environment to enable the assistant.',
