@@ -197,7 +197,7 @@ export default function ChatWidget() {
     const question = input.trim()
     if (question === '' || sending) return
     // Full conversation history + new user turn — sent for follow-ups
-    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: question }].slice(
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user' as const, content: question }].slice(
       -MAX_STORED_MESSAGES
     )
     setMessages(nextMessages)
@@ -226,7 +226,7 @@ export default function ChatWidget() {
       }
       const reply =
         json.reply ?? json.error ?? 'Sorry, I could not get an answer right now. Please try again.'
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }].slice(-MAX_STORED_MESSAGES))
+      setMessages((prev) => [...prev, { role: 'assistant' as const, content: reply }].slice(-MAX_STORED_MESSAGES))
     } catch {
       setMessages((prev) =>
         [

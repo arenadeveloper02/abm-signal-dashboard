@@ -1,20 +1,20 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-31T07:57:12.361Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-31T10:07:55.540Z.
 
 ## Overview
 
-ABM Signal Tracker dashboard. Fixed TS1127 invalid-character syntax errors in app/api/chat/route.ts and components/StoredSignalsDashboard.tsx by rewriting both files with clean, complete TypeScript, keeping the Signals tab search input ('Search signals') that filters the loaded signals client-side with AND logic against the existing family/type/severity filters.
+ABM signal tracking dashboard: upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity, with a chat assistant grounded in stored signal data.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 48
 
 ## Features
 
-- Company list import (CSV/XLSX) and background signal analysis
-- Stored signals dashboard with Overview, Companies, Signals, Trends and Insights tabs
-- Signals tab search input combined (AND) with existing filters, client-side only
-- Signal data chat assistant
+- CSV/XLSX company import with manual add
+- Background signal analysis via ABM API
+- Stored signals dashboard with KPIs, charts and company drilldowns
+- Signal chat assistant grounded in all stored signals
 - Arena email gate with access-denied page
 
 ## Tech Stack
@@ -72,7 +72,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
-- `app/api/chat/route.ts`
+- `app/api/delete-company/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
 
@@ -133,7 +133,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `app/access-denied/page.tsx`
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
-- `app/api/chat/route.ts`
+- `app/api/delete-company/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
 - `app/arena-ds-tokens.css`
@@ -178,20 +178,17 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-31T07:57:12.361Z
+- **Updated at:** 2026-08-31T10:07:55.540Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-1. Signals tab — add a search input alongside the existing filters.
-   - In the Signals tab, add ONE text input for searching signals, placed alongside the existing filter controls in the same filter row/bar. Reuse the exact input component and styling already used by the filters in that area — no new styles, no new component library, no new dependency.
-   - Placeholder: "Search signals".
-   - The search filters the signals list client-side, case-insensitive, matching on a substring of the signal's existing visible text fields (company name, signal title/headline, and signal summary/description as already rendered in that list).
-   - The search must combine with the existing filters using AND logic: applying search narrows whatever the current filters already return. Do not change, replace, or restructure any existing filter logic or its state.
-   - Clearing the input restores the unfiltered (filter-only) result set.
-   - Do not change the Signals tab layout, table/card structure, columns, sorting, pagination, or any API call. This is client-side filtering of already-loaded data only — no new API request, no new query param, no backend change.
+1. Import section — "Add a company manually": change one placeholder.
+   - There are two inputs: the first takes the company name, the second takes the company website.
+   - On the SECOND input (the website input), the placeholder is currently "position2.com". Change that placeholder text to "website".
+   - This is a placeholder string change only. Do not change the input's name, id, value, state, validation, required status, styling, layout, order, or the label. Do not touch the first (company name) input. Do not change anything else in the Import section or anywhere else in the app.
 
 Only touch the files/functions directly related to the points above.
 Do not change variable names, code style, or structure outside the scope of these changes.

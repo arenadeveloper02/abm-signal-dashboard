@@ -88,6 +88,19 @@ export async function POST(request: Request) {
       cache: 'no-store',
     })
 
+    if (!upstream.ok) {
+      let detail = ''
+      try {
+        detail = (await upstream.text()).slice(0, 500)
+      } catch {
+        detail = ''
+      }
+      return NextResponse.json(
+        { error: 'Upstream error', status: upstream.status, detail },
+        { status: upstream.status }
+      )
+    }
+
     let raw: unknown = null
     try {
       raw = await upstream.json()
@@ -95,22 +108,23 @@ export async function POST(request: Request) {
       raw = null
     }
 
-    if (!upstream.ok) {
-      let detail = ''
-      if (isRecord(raw) && typeof raw.error === 'string') detail = raw.error
+    if (raw === null) {
       return NextResponse.json(
         {
-          error: detail || 'Upstream delete failed',
+          error: 'Upstream error',
           status: upstream.status,
-          detail: raw,
+          detail: 'Upstream returned a non-JSON response body',
         },
-        { status: upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502 }
+        { status: 502 }
       )
     }
 
-    return NextResponse.json(raw ?? { ok: true }, { status: upstream.status })
+    return NextResponse.json(raw, { status: upstream.status })
   } catch (err) {
     const detail = err instanceof Error ? err.message : 'Unknown network error'
-    return NextResponse.json({ error: 'Upstream request failed', detail }, { status: 502 })
+    return NextResponse.json(
+      { error: 'Upstream request failed', detail },
+      { status: 502 }
+    )
   }
 }

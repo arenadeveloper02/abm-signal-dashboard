@@ -1,14 +1,13 @@
 # abm-signal-dashboard
 
-Added a client-side search input to the Signals tab filter bar. Files changed: components/SignalsTab.tsx — (1) added local searchQuery useState alongside the existing expanded state; (2) added a visible useMemo that further narrows the already-filtered signals with a case-insensitive substring match on company, signal_type, and summary (AND logic on top of existing filters, restores filter-only set when cleared); (3) added one text input with placeholder 'Search signals' in the existing filter bar, reusing the exact selectCls styling; (4) swapped the list rendering, empty-state check, and result count from `filtered` to `visible`. prisma/schema.prisma is returned verbatim and unchanged per the database rule — no schema, API, or backend changes were made.
+Edited abm-signal-dashboard. Changes: components/AccountSignalTrackerClient.tsx — in the Import section's 'Add a company manually' block, the second input (company website) placeholder was changed from 'position2.com' to 'website'. Placeholder string change only; no other logic, styling, state, or validation touched. prisma/schema.prisma is echoed verbatim (unchanged, per the database rule). app/not-found.tsx included per canonical requirement (unchanged content).
 
 ## Features
 
-- Client-side signal search in the Signals tab filter bar
-- Search combines with existing filters using AND logic
-- Case-insensitive substring matching on company, signal type, and summary
 - Responsive UI with Tailwind CSS
 - Next.js App Router pages and components
+- CSV/XLSX company import with manual add
+- Stored signals dashboard
 
 ## Tech Stack
 
