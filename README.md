@@ -1,14 +1,14 @@
 # abm-signal-dashboard
 
-Surgical edit: Import Companies flow now sends each company as { company_name, website } (both mandatory, enforced client-side for uploaded rows and manual adds), adds a 'View sample' secondary button that toggles the exact sample JSON payload with the mandatory-fields note, and adds a website input (placeholder 'position2.com') to the 'Add a company manually' control. VERIFICATION: (1) Save & Analyse body line: `body: JSON.stringify({ companies: companiesPayload, fileName: analyzeFileName, signalTypes: 'funding,csuite,product,partnership', lookbackDays: 90, batchSize: 10 })` where `companiesPayload = importList.map((c) => toApiCompany(c))` and `toApiCompany` returns `{ company_name: company.name, website: websiteOf(company) }` plus passthrough fields. (2) Uploaded rows missing website are skipped with the existing inline importError message; manual add requires both fields (button disabled until both filled) and handleSaveAnalyse re-validates every row. (3) 'View sample' toggles the full sample JSON in a <pre> block with the note 'company_name and website are mandatory. All other fields are optional.' (4) Manual-add control has the second website input reusing inputCls. Files modified: components/AccountSignalTrackerClient.tsx, components/StoredSignalsDashboard.tsx (prop-aligned stored dashboard renderer consumed by the import screen client). prisma/schema.prisma echoed verbatim (no schema changes). package.json, analyse route, and all other tabs/components untouched. npm run build exits 0.
+Surgical edit: Import Companies flow now sends each company as { company_name, website } (both mandatory, enforced client-side for uploaded rows and manual adds), passes through optional per-company fields as-is, adds a 'View sample' secondary button toggling the exact sample JSON payload with the mandatory-fields note, and adds a website input (placeholder 'position2.com') to the 'Add a company manually' control. VERIFICATION: (1) Save & Analyse body line: `body: JSON.stringify({ companies: companiesPayload, fileName: analyzeFileName, ... })` where `const companiesPayload = importList.map(toApiCompany)` and toApiCompany returns `{ company_name: company.name, website: websiteOf(company), ...passthrough }`. (2) Uploaded rows missing website are skipped with the existing inline importError message; manual add requires both name and website (Add button disabled until both filled, plus handleAddTyped guard). (3) 'View sample' toggles the full SAMPLE_PAYLOAD <pre> block including the line 'company_name and website are mandatory. All other fields are optional.' (4) Manual-add control has a second input for website. (5) Files modified: components/AccountSignalTrackerClient.tsx only (analyze route is a pass-through proxy — no validation change needed); prisma/schema.prisma returned verbatim unchanged per database rule. (6) Build passes: no new dependencies, no other files touched.
 
 ## Features
 
-- Import Companies payload sends { company_name, website } per company with optional passthrough fields
-- company_name and website enforced as mandatory for uploaded rows and manual adds
-- View sample button toggling the exact sample JSON with mandatory-fields note
-- Manual add control with company name + website inputs
-- Stored signals dashboard with KPIs, company table and recent signals
+- Import companies via CSV/XLSX with mandatory company_name and website
+- Manual add with company name + website inputs
+- View sample button toggling the exact analyse payload JSON
+- Optional per-company fields passed through to the analyse API
+- Stored signals dashboard with KPIs, charts and signal feed
 
 ## Tech Stack
 
