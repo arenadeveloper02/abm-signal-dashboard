@@ -27,8 +27,20 @@ const tooltipStyle = {
 
 export default function SignalsTab({ signals, filters, onFiltersChange, search, signalTypes }: SignalsTabProps) {
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  const [searchQuery, setSearchQuery] = useState('')
 
   const filtered = useMemo(() => filterSignals(signals, filters, search), [signals, filters, search])
+
+  const visible = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return filtered
+    return filtered.filter(
+      (s) =>
+        s.company.toLowerCase().includes(q) ||
+        s.signal_type.toLowerCase().includes(q) ||
+        s.summary.toLowerCase().includes(q)
+    )
+  }, [filtered, searchQuery])
 
   const severityData = useMemo(() => {
     const counts = { HIGH: 0, MEDIUM: 0, LOW: 0 }
@@ -149,6 +161,14 @@ export default function SignalsTab({ signals, filters, onFiltersChange, search, 
       </div>
 
       <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-4">
+        <input
+          type="text"
+          aria-label="Search signals"
+          placeholder="Search signals"
+          className={selectCls}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
         <select
           aria-label="Filter by family"
           className={selectCls}
@@ -206,11 +226,11 @@ export default function SignalsTab({ signals, filters, onFiltersChange, search, 
           Clear
         </button>
         <span className="ml-auto text-xs text-[#8A8F9C]">
-          {filtered.length} of {signals.length} signal{signals.length === 1 ? '' : 's'}
+          {visible.length} of {signals.length} signal{signals.length === 1 ? '' : 's'}
         </span>
       </div>
 
-      {filtered.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-12 text-center">
           <p className="text-3xl" aria-hidden="true">{'\u{1F50D}'}</p>
           <p className="mt-3 text-sm font-medium text-white">No signals match your filters</p>
@@ -219,7 +239,7 @@ export default function SignalsTab({ signals, filters, onFiltersChange, search, 
       ) : (
         <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Signal list">
           <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
-            {filtered.map((s, i) => {
+            {visible.map((s, i) => {
               const isExpanded = Boolean(expanded[i])
               const isLong = s.summary.length > 140
               return (

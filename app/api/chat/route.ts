@@ -92,14 +92,8 @@ export async function POST(request: Request) {
     })
 
     if (!upstream.ok) {
-      let detail = ''
-      try {
-        detail = (await upstream.text()).slice(0, 300)
-      } catch {
-        detail = ''
-      }
       return NextResponse.json({
-        reply: `The chat service returned an error (status ${upstream.status}). Please try again shortly.${detail !== '' ? '' : ''}`,
+        reply: `The chat service returned an error (status ${upstream.status}). Please try again shortly.`,
       })
     }
 
@@ -112,12 +106,15 @@ export async function POST(request: Request) {
 
     const reply = extractReply(raw)
     if (reply === null) {
-      return NextResponse.json({ reply: 'The chat service returned an unexpected response. Please try again.' })
+      return NextResponse.json({
+        reply: 'Sorry, I could not generate an answer right now. Please try again.',
+      })
     }
 
     return NextResponse.json({ reply })
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : 'Unknown network error'
-    return NextResponse.json({ reply: `Could not reach the chat service (${detail}). Please try again.` })
+  } catch {
+    return NextResponse.json({
+      reply: 'Could not reach the chat service. Please check your connection and try again.',
+    })
   }
 }

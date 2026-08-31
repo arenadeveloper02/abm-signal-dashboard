@@ -1,21 +1,21 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-31T07:04:18.365Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-31T07:57:12.361Z.
 
 ## Overview
 
-ABM Signal Tracker dashboard for uploading company lists and tracking funding, C-suite, product and partnership signals.
+ABM Signal Tracker dashboard. Fixed TS1127 invalid-character syntax errors in app/api/chat/route.ts and components/StoredSignalsDashboard.tsx by rewriting both files with clean, complete TypeScript, keeping the Signals tab search input ('Search signals') that filters the loaded signals client-side with AND logic against the existing family/type/severity filters.
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 49
+**File count:** 48
 
 ## Features
 
-- Stored signals dashboard with KPI cards, charts and filterable feed
-- Import companies via CSV/XLSX with company_name + website payload
-- View sample payload button on the import screen
-- Manual company add with name and website inputs
-- Floating signal data chat assistant
+- Company list import (CSV/XLSX) and background signal analysis
+- Stored signals dashboard with Overview, Companies, Signals, Trends and Insights tabs
+- Signals tab search input combined (AND) with existing filters, client-side only
+- Signal data chat assistant
+- Arena email gate with access-denied page
 
 ## Tech Stack
 
@@ -63,7 +63,6 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `app/access-denied/page.tsx`
 - `app/arena-ds-tokens.css`
-- `app/error.tsx`
 - `app/globals.css`
 - `app/layout.tsx`
 - `app/not-found.tsx`
@@ -104,6 +103,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `lib/arena-email-constants.ts`
 - `lib/arena-email.ts`
 - `lib/data.ts`
+- `lib/fetch-all-stored-signals.ts`
 - `lib/prisma.ts`
 - `lib/types.ts`
 - `lib/utils.ts`
@@ -124,14 +124,12 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `README.md`
 - `REPO_SUMMARY.md`
-- `VERIFICATION.md`
 
 ## Complete File Index
 
 - `.env.example`
 - `README.md`
 - `REPO_SUMMARY.md`
-- `VERIFICATION.md`
 - `app/access-denied/page.tsx`
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
@@ -139,7 +137,6 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
 - `app/arena-ds-tokens.css`
-- `app/error.tsx`
 - `app/globals.css`
 - `app/layout.tsx`
 - `app/not-found.tsx`
@@ -166,6 +163,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `lib/arena-email-constants.ts`
 - `lib/arena-email.ts`
 - `lib/data.ts`
+- `lib/fetch-all-stored-signals.ts`
 - `lib/prisma.ts`
 - `lib/types.ts`
 - `lib/utils.ts`
@@ -180,54 +178,20 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-31T07:04:18.365Z
+- **Updated at:** 2026-08-31T07:57:12.361Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-1. Import Companies — "Save & Analyse" API payload must include the company website.
-   Today each company is sent with a name only. Change it so every company object in the request body is sent as:
-   {
-     "companies": [
-       { "company_name": "Position2", "website": "position2.com" }
-     ]
-   }
-   - company_name and website are BOTH MANDATORY. A company row missing either field must be rejected before the request is sent, using the existing inline error/toast mechanism already present on that screen. Do not introduce a new error UI style.
-   - Any additional supported per-company fields present in the uploaded file must be passed through unchanged in the same company object: industry, company_city, company_state, company_country, employees, company_linkedin_url, account_owner, account_stage.
-   - Existing top-level fields must keep working exactly as they do today: signalTypes, lookbackDays, batchSize, fileName, skipIfRunToday.
-   - File parsing (CSV/XLSX) must accept the company_name and website columns. Where an existing 'name' key is already handled, keep accepting it by mapping it to company_name. Do not restructure the parser.
-
-2. Import Companies — add a button that shows the sample file format.
-   - Add ONE button in the Import Companies area, labelled "View sample". Reuse the exact button component and styling already used in that area — no new styles, no new component library, no modal library.
-   - Clicking it toggles a read-only block showing this exact sample payload:
-   {
-     "companies": [
-       {
-         "company_name": "Position2",
-         "website": "position2.com",
-         "industry": "Marketing Services",
-         "company_city": "Santa Clara",
-         "company_state": "CA",
-         "company_country": "United States",
-         "employees": "250",
-         "company_linkedin_url": "https://www.linkedin.com/company/position2",
-         "account_owner": "Sakshi Mishra",
-         "account_stage": "Customer"
-       }
-     ],
-     "signalTypes": "funding,csuite,product,partnership",
-     "lookbackDays": 90,
-     "batchSize": 10,
-     "fileName": "my-batch-label",
-     "skipIfRunToday": false
-   }
-   - Below the sample, show this line: "company_name and website are mandatory. All other fields are optional."
-
-3. "Add a company manually" — add a website input.
-   - Alongside the existing company name input, add a second text input for the company website (placeholder: position2.com). Reuse the same input component and the same add button already present.
-   - Both name and website are required to add a row; the added row must carry { company_name, website } so it submits correctly with the payload in change 1.
+1. Signals tab — add a search input alongside the existing filters.
+   - In the Signals tab, add ONE text input for searching signals, placed alongside the existing filter controls in the same filter row/bar. Reuse the exact input component and styling already used by the filters in that area — no new styles, no new component library, no new dependency.
+   - Placeholder: "Search signals".
+   - The search filters the signals list client-side, case-insensitive, matching on a substring of the signal's existing visible text fields (company name, signal title/headline, and signal summary/description as already rendered in that list).
+   - The search must combine with the existing filters using AND logic: applying search narrows whatever the current filters already return. Do not change, replace, or restructure any existing filter logic or its state.
+   - Clearing the input restores the unfiltered (filter-only) result set.
+   - Do not change the Signals tab layout, table/card structure, columns, sorting, pagination, or any API call. This is client-side filtering of already-loaded data only — no new API request, no new query param, no backend change.
 
 Only touch the files/functions directly related to the points above.
 Do not change variable names, code style, or structure outside the scope of these changes.
