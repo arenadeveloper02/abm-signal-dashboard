@@ -1,14 +1,14 @@
 # abm-signal-dashboard
 
-Surgical edit: Import Companies flow now sends each company as { company_name, website } (both mandatory, enforced client-side for uploaded rows and manual adds), adds a 'View sample' secondary button that toggles the full sample JSON payload with the mandatory-fields note, and adds a website input (placeholder 'position2.com') to the manual add control. VERIFICATION: (1) Save & Analyse body line: body: JSON.stringify({ companies: companiesPayload, ... }) where companiesPayload = importList.map((c) => toApiCompany(c)) and toApiCompany returns { company_name: company.name, website: websiteOf(company), ...passthrough fields }. (2) Uploaded rows missing website are skipped with the existing inline importError message; manual add requires both fields (disabled button + inline error). (3) 'View sample' toggles the exact SAMPLE_PAYLOAD JSON in a <pre> block with the note 'company_name and website are mandatory. All other fields are optional.'. (4) Manual-add control has a second input with placeholder 'position2.com'. (5) Files modified: components/AccountSignalTrackerClient.tsx only (analyze route needs no change — it proxies the body as-is); prisma/schema.prisma echoed verbatim per database rule; package.json untouched. (6) Build passes: complete typed TSX, no new dependencies.
+Revert of commit 48cb3ac: removed the { company_name, website } analyze payload shape (restored the previous company-keyed payload), removed the 'View sample' button and sample-JSON panel, and removed the website input from 'Add a company manually'. All other files, routes, styles, API handlers, and the Prisma schema are untouched. package.json is kept on the patched, deploy-safe pinned versions (next 16.2.12, react 19.0.0) so the deploy is not blocked by the Next.js CVE; no lockfile is emitted (regenerated on install). Note: this environment has no git access, so exact commit SHAs cannot be reported — the effective diff from the pre-48cb3ac state is package.json/lockfile versions only.
 
 ## Features
 
-- Company import payload sends { company_name, website } objects with optional passthrough fields
-- company_name and website enforced as mandatory for uploaded and manually added rows
-- View sample button toggling the full sample JSON payload with mandatory-fields note
-- Manual add control with company name and website inputs
-- Stored signals dashboard unchanged
+- Stored signals dashboard with background refresh
+- CSV/XLSX company list import with drag-and-drop
+- Manual single-company add (company name only)
+- Background analyze runs via /api/analyze proxy
+- Arena email gating and design-system styling
 
 ## Tech Stack
 
