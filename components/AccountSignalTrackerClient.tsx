@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import type { AnalyzeResult, ParsedCompany, StoredSignal, StoredSignalsResult } from '@/lib/types'
+import type { AnalyzeResult, ParsedCompany, StoredSignalsResult } from '@/lib/types'
+import { fetchAllStoredSignals } from '@/lib/fetch-all-stored-signals'
 import StoredSignalsDashboard from '@/components/StoredSignalsDashboard'
 import { DashboardSkeleton } from '@/components/Skeletons'
 
@@ -71,47 +72,6 @@ const SAMPLE_PAYLOAD = `{
 
 type AnalyzePayload = Partial<AnalyzeResult> & { error?: string; missing?: string[] }
 
-type StoredPayload = Partial<StoredSignalsResult> & { error?: string; missing?: string[] }
-
-function normalizeStoredPayload(json: StoredPayload, requestedCount: number): StoredSignalsResult {
-  const signals = Array.isArray(json.signals) ? (json.signals as StoredSignal[]) : []
-  return {
-    total: typeof json.total === 'number' ? json.total : signals.length,
-    returned: typeof json.returned === 'number' ? json.returned : signals.length,
-    limit: typeof json.limit === 'number' ? json.limit : 1000,
-    offset: typeof json.offset === 'number' ? json.offset : 0,
-    requested_count:
-      typeof json.requested_count === 'number' ? json.requested_count : requestedCount,
-    matched_count:
-      typeof json.matched_count === 'number'
-        ? json.matched_count
-        : Array.isArray(json.companies)
-          ? json.companies.length
-          : 0,
-    unmatched_count:
-      typeof json.unmatched_count === 'number'
-        ? json.unmatched_count
-        : Array.isArray(json.unmatched_inputs)
-          ? json.unmatched_inputs.length
-          : 0,
-    counts_by_family: {
-      funding: json.counts_by_family?.funding ?? 0,
-      csuite: json.counts_by_family?.csuite ?? 0,
-      product: json.counts_by_family?.product ?? 0,
-      partnership: json.counts_by_family?.partnership ?? 0,
-    },
-    unmatched_inputs: Array.isArray(json.unmatched_inputs) ? json.unmatched_inputs : [],
-    companies: Array.isArray(json.companies) ? json.companies : [],
-    total_companies: typeof json.total_companies === 'number' ? json.total_companies : undefined,
-    total_signal_rows: typeof json.total_signal_rows === 'number' ? json.total_signal_rows : undefined,
-    company_count: typeof json.company_count === 'number' ? json.company_count : undefined,
-    counts_by_alert: json.counts_by_alert,
-    counts_by_category: json.counts_by_category,
-    dashboard: json.dashboard,
-    signals,
-  }
-}
-
 type ViewMode = 'dashboard' | 'import'
 
 const MAX_VISIBLE_ROWS = 100
@@ -145,39 +105,28 @@ export default function AccountSignalTrackerClient() {
     setLoadingStored(true)
     setStoredError(null)
     try {
-      const res = await fetch('/api/all-stored-signals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: 1000, offset: 0, includeSignals: true }),
-      })
-      let json: StoredPayload = {}
-      try {
-        json = (await res.json()) as StoredPayload
-      } catch {
-        json = {}
-      }
-      if (!res.ok) {
-        if (res.status === 500 && Array.isArray(json.missing) && json.missing.length > 0) {
-          setStoredError(
-            `Missing environment variable${json.missing.length === 1 ? '' : 's'}: ${json.missing.join(', ')}. Add ${json.missing.length === 1 ? 'it' : 'them'} to .env.local and restart the server.`
-          )
-          return
-        }
-        setStoredError(json.error ?? `Fetching stored signals failed with status ${res.status}`)
+      const result = await fetchAllStoredSignals()
+      setStoredResult(result)
+    } catch (err) {
+      const missing =
+        err && typeof err === 'object' && 'missing' in err
+          ? (err as { missing?: string[] }).missing
+          : undefined
+      const status =
+        err && typeof err === 'object' && 'status' in err
+          ? (err as { status?: number }).status
+          : undefined
+      if (status === 500 && Array.isArray(missing) && missing.length > 0) {
+        setStoredError(
+          `Missing environment variable${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}. Add ${missing.length === 1 ? 'it' : 'them'} to .env.local and restart the server.`
+        )
         return
       }
-      if (json.error) {
-        setStoredError(json.error)
-        return
-      }
-      if (!Array.isArray(json.signals) || typeof json.total !== 'number') {
-        setStoredError('Unexpected response from the signal read API')
-        return
-      }
-      const fallbackCount = Array.isArray(json.companies) ? json.companies.length : 0
-      setStoredResult(normalizeStoredPayload(json, fallbackCount))
-    } catch {
-      setStoredError('Could not reach the signal read API. Check your connection and try again.')
+      setStoredError(
+        err instanceof Error
+          ? err.message
+          : 'Could not reach the signal read API. Check your connection and try again.'
+      )
     } finally {
       setLoadingStored(false)
     }

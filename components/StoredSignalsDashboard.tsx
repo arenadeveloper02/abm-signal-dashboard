@@ -323,6 +323,93 @@ const CARD_TYPE_FILTER: Record<string, string | undefined> = {
 const selectCls =
   'rounded-lg border border-[#E2E3E5] bg-white px-2 py-1.5 text-sm text-[#2C2D33] focus:border-[#1A73E8] focus:outline-none'
 
+function CompanyInfoSection({ company }: { company: StoredCompany }) {
+  const website = (company.website ?? '').trim()
+  const linkedin = (company.linkedin_url ?? '').trim()
+  const domain = (company.domain ?? '').trim()
+  const description = (company.short_description ?? '').trim()
+  const locationParts = [company.city, company.state, company.country]
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter((p) => p !== '')
+  const location =
+    locationParts.length > 0
+      ? locationParts.join(', ')
+      : (company.hq ?? '').trim() !== ''
+        ? (company.hq ?? '').trim()
+        : ''
+
+  const facts: { label: string; value: string; href?: string }[] = [
+    {
+      label: 'Website',
+      value: website !== '' ? website : '\u2014',
+      href: website !== '' ? (website.startsWith('http') ? website : `https://${website}`) : undefined,
+    },
+    { label: 'Domain', value: domain !== '' ? domain : '\u2014' },
+    { label: 'Industry', value: industryOf(company) },
+    { label: 'HQ / Location', value: location !== '' ? location : '\u2014' },
+    { label: 'Employees', value: extraField(company, ['employees', 'employee_count']) },
+    { label: 'Founded', value: extraField(company, ['founded_year', 'foundedYear']) },
+    {
+      label: 'LinkedIn',
+      value: linkedin !== '' ? linkedin : '\u2014',
+      href: linkedin !== '' ? linkedin : undefined,
+    },
+    { label: 'Account stage', value: extraField(company, ['account_stage', 'accountStage']) },
+    { label: 'Account owner', value: extraField(company, ['account_owner', 'accountOwner']) },
+    { label: 'Status', value: extraField(company, ['status']) },
+    { label: 'Analyses', value: extraField(company, ['analysis_count', 'analysisCount']) },
+    {
+      label: 'First seen',
+      value:
+        (company.first_seen_at ?? '').trim() !== ''
+          ? formatDate(company.first_seen_at as string)
+          : '\u2014',
+    },
+    {
+      label: 'Last analysed',
+      value:
+        (company.last_analysed_at ?? '').trim() !== ''
+          ? formatDate(company.last_analysed_at as string)
+          : '\u2014',
+    },
+  ]
+
+  return (
+    <section
+      aria-label={`Company info for ${company.company_name}`}
+      className='rounded-xl border border-[#E2E3E5] bg-white p-4'
+    >
+      <h3 className='text-xs font-semibold uppercase tracking-wide text-[#8A8D99]'>Company info</h3>
+      <p className='mt-1 text-sm font-semibold text-[#2C2D33]'>{company.company_name}</p>
+      {description !== '' && (
+        <p className='mt-2 text-sm leading-relaxed text-[#575A66] line-clamp-4'>{description}</p>
+      )}
+      <dl className='mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3'>
+        {facts.map((f) => (
+          <div key={f.label} className='min-w-0'>
+            <dt className='text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'>{f.label}</dt>
+            <dd className='mt-0.5 truncate text-sm text-[#2C2D33]'>
+              {f.href ? (
+                <a
+                  href={f.href}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='font-medium text-[#1A73E8] hover:underline'
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {f.value}
+                </a>
+              ) : (
+                f.value
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className='rounded-2xl border border-[#E2E3E5] bg-white p-5' aria-label={title}>
@@ -539,12 +626,18 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
   )
 
   const dash: StoredDashboardTotals = result.dashboard ?? {}
+  // Companies[] is always the full list from the API — use it as the KPI source of truth
+  // so "Companies Tracked" always matches the Companies tab row count.
+  const companiesList = result.companies ?? []
   const totalCompanies =
-    result.total_companies ??
-    dash.total_companies ??
-    dash.companies_total ??
-    dash.companies_tracked ??
-    (result.companies ?? []).length
+    companiesList.length > 0
+      ? companiesList.length
+      : (result.totals?.total_companies ??
+        result.total_companies ??
+        dash.total_companies ??
+        dash.companies_total ??
+        dash.companies_tracked ??
+        0)
   const highAlerts = dash.high_alerts ?? result.counts_by_alert?.high ?? severityCounts.HIGH
 
   const typeCountOf = (label: string): number => typeCounts.find((t) => t.type === label)?.count ?? 0
@@ -902,20 +995,7 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                             <tr className='border-b border-[#F0F1F2] last:border-b-0'>
                               <td colSpan={9} className='bg-[#F7F8F9] px-6 py-5'>
                                 <div className='grid gap-4'>
-                                  <div className='flex flex-wrap gap-x-8 gap-y-2 text-xs text-[#575A66]'>
-                                    <span>
-                                      <span className='font-semibold text-[#2C2D33]'>Website:</span>{' '}
-                                      {(row.company.website ?? '').trim() !== '' ? row.company.website : '\u2014'}
-                                    </span>
-                                    <span>
-                                      <span className='font-semibold text-[#2C2D33]'>Domain:</span>{' '}
-                                      {(row.company.domain ?? '').trim() !== '' ? row.company.domain : '\u2014'}
-                                    </span>
-                                    <span>
-                                      <span className='font-semibold text-[#2C2D33]'>Employees:</span>{' '}
-                                      {extraField(row.company, ['employees', 'employee_count'])}
-                                    </span>
-                                  </div>
+                                  <CompanyInfoSection company={row.company} />
                                   {row.techStack.length > 0 && (
                                     <div className='flex flex-wrap items-center gap-1.5'>
                                       <span className='text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'>Tech</span>
@@ -942,17 +1022,22 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                                       ))}
                                     </div>
                                   )}
-                                  {row.signals.length === 0 ? (
-                                    <p className='text-xs text-[#8A8D99]'>No stored signals for this company.</p>
-                                  ) : (
-                                    <ul className='space-y-3'>
-                                      {row.signals.map((e, i) => (
-                                        <li key={`${e.s.id}-${i}`}>
-                                          <SignalRow e={e} />
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
+                                  <div>
+                                    <h3 className='mb-2 text-xs font-semibold uppercase tracking-wide text-[#8A8D99]'>
+                                      Signals ({formatNumber(row.signals.length)})
+                                    </h3>
+                                    {row.signals.length === 0 ? (
+                                      <p className='text-xs text-[#8A8D99]'>No stored signals for this company.</p>
+                                    ) : (
+                                      <ul className='space-y-3'>
+                                        {row.signals.map((e, i) => (
+                                          <li key={`${e.s.id}-${i}`}>
+                                            <SignalRow e={e} />
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                             </tr>

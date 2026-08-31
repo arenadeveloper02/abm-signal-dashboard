@@ -1,13 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type {
-  CountsByAlert,
-  StoredCompany,
-  StoredDashboardTotals,
-  StoredSignal,
-  StoredSignalsCounts,
-} from '@/lib/types'
+import type { StoredSignal, StoredSignalsResult } from '@/lib/types'
+import { fetchAllStoredSignals } from '@/lib/fetch-all-stored-signals'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -19,24 +14,10 @@ interface ChatApiResponse {
   error?: string
 }
 
-interface AllSignalsPayload {
-  total?: number
-  returned?: number
-  signals?: StoredSignal[]
-  companies?: StoredCompany[]
-  counts_by_family?: StoredSignalsCounts
-  counts_by_alert?: CountsByAlert
-  counts_by_category?: Record<string, number>
-  dashboard?: StoredDashboardTotals
-  error?: string
-}
-
 const MAX_CONTEXT_CHARS = 350000
-const PAGE_LIMIT = 1000
-const MAX_PAGES = 20
 
-function buildContext(first: AllSignalsPayload | null, signals: StoredSignal[]): string {
-  const companies = (first?.companies ?? []).map((c) => ({
+function buildContext(result: StoredSignalsResult): string {
+  const companies = (result.companies ?? []).map((c) => ({
     name: c.company_name,
     industry: c.industry,
     hq: c.hq,
@@ -44,7 +25,7 @@ function buildContext(first: AllSignalsPayload | null, signals: StoredSignal[]):
     total: c.total,
     by_family: c.by_family,
   }))
-  const compactSignals = signals.map((s) => ({
+  const compactSignals = result.signals.map((s: StoredSignal) => ({
     company: (s.company_name ?? '').trim() !== '' ? s.company_name : s.company,
     family: s.signal_family,
     type: s.signal_type,
@@ -55,13 +36,15 @@ function buildContext(first: AllSignalsPayload | null, signals: StoredSignal[]):
   }))
   const ctx = {
     totals: {
-      total_signals: signals.length,
+      total_signals: result.signals.length,
       total_companies: companies.length,
+      api_total_companies: result.total_companies,
+      api_total_signals: result.totals?.total_signals,
     },
-    dashboard: first?.dashboard ?? {},
-    counts_by_family: first?.counts_by_family ?? {},
-    counts_by_alert: first?.counts_by_alert ?? {},
-    counts_by_category: first?.counts_by_category ?? {},
+    dashboard: result.dashboard ?? {},
+    counts_by_family: result.counts_by_family ?? {},
+    counts_by_alert: result.counts_by_alert ?? {},
+    counts_by_category: result.counts_by_category ?? {},
     companies,
     signals: compactSignals,
   }
@@ -133,35 +116,8 @@ export default function ChatWidget() {
       setLoadingData(true)
       setDataError(null)
       try {
-        const allSignals: StoredSignal[] = []
-        let first: AllSignalsPayload | null = null
-        let offset = 0
-        for (let page = 0; page < MAX_PAGES; page++) {
-          const res = await fetch('/api/all-stored-signals', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ limit: PAGE_LIMIT, offset, includeSignals: true }),
-          })
-          let json: AllSignalsPayload = {}
-          try {
-            json = (await res.json()) as AllSignalsPayload
-          } catch {
-            json = {}
-          }
-          if (!res.ok) {
-            throw new Error(json.error ?? `Signal data request failed with status ${res.status}`)
-          }
-          if (json.error) {
-            throw new Error(json.error)
-          }
-          if (first === null) first = json
-          const batch = Array.isArray(json.signals) ? json.signals : []
-          allSignals.push(...batch)
-          const total = typeof json.total === 'number' ? json.total : allSignals.length
-          offset += PAGE_LIMIT
-          if (batch.length === 0 || allSignals.length >= total) break
-        }
-        const ctx = buildContext(first, allSignals)
+        const result = await fetchAllStoredSignals()
+        const ctx = buildContext(result)
         contextRef.current = ctx
         return ctx
       } catch (err) {

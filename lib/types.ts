@@ -161,6 +161,30 @@ export interface StoredCompany {
   hq: string
   total: number
   by_family: StoredSignalsCounts
+  city?: string
+  state?: string
+  country?: string
+  employees?: number | string | null
+  founded_year?: number | string | null
+  short_description?: string
+  linkedin_url?: string
+  account_stage?: string
+  account_owner?: string
+  status?: string
+  analysis_count?: number
+  first_seen_at?: string
+  last_analysed_at?: string
+  has_signals?: boolean
+}
+
+export interface StoredSignalsTotals {
+  total_companies?: number
+  companies_returned?: number
+  companies_with_signals?: number
+  total_signals?: number
+  signals_returned?: number
+  signals_excluded_no_significant?: number
+  total_signal_rows?: number
 }
 
 export interface StoredSignal {
@@ -229,6 +253,7 @@ export interface StoredSignalsResult {
   counts_by_alert?: CountsByAlert
   counts_by_category?: Record<string, number>
   dashboard?: StoredDashboardTotals
+  totals?: StoredSignalsTotals
 }
 
 export type NormalizedSeverity = 'HIGH' | 'MEDIUM' | 'LOW'
