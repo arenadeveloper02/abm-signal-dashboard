@@ -48,27 +48,44 @@ function websiteOf(company: ParsedCompany): string {
   return value === undefined ? '' : value.trim()
 }
 
-const SAMPLE_PAYLOAD = `{
-  "companies": [
-    {
-      "company_name": "Position2",
-      "website": "position2.com",
-      "industry": "Marketing Services",
-      "company_city": "Santa Clara",
-      "company_state": "CA",
-      "company_country": "United States",
-      "employees": "250",
-      "company_linkedin_url": "https://www.linkedin.com/company/position2",
-      "account_owner": "Sakshi Mishra",
-      "account_stage": "Customer"
-    }
-  ],
-  "signalTypes": "funding,csuite,product,partnership",
-  "lookbackDays": 90,
-  "batchSize": 10,
-  "fileName": "my-batch-label",
-  "skipIfRunToday": false
-}`
+const SAMPLE_CSV_HEADERS = [
+  'company_name',
+  'website',
+  'industry',
+  'company_city',
+  'company_state',
+  'company_country',
+  'employees',
+  'company_linkedin_url',
+] as const
+
+const SAMPLE_CSV_ROW = [
+  'Position2',
+  'position2.com',
+  'Marketing Services',
+  'Santa Clara',
+  'CA',
+  'United States',
+  '250',
+  'https://www.linkedin.com/company/position2',
+] as const
+
+function downloadSampleCsv(): void {
+  const escape = (value: string): string => {
+    if (/[",\n\r]/.test(value)) return `"${value.replace(/"/g, '""')}"`
+    return value
+  }
+  const csv = `${SAMPLE_CSV_HEADERS.join(',')}\n${SAMPLE_CSV_ROW.map(escape).join(',')}\n`
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'sample-companies.csv'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
 
 type AnalyzePayload = Partial<AnalyzeResult> & { error?: string; missing?: string[] }
 
@@ -96,7 +113,6 @@ export default function AccountSignalTrackerClient() {
   const [importError, setImportError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [fileName, setFileName] = useState('')
-  const [showSample, setShowSample] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const idCounter = useRef(0)
@@ -388,21 +404,17 @@ export default function AccountSignalTrackerClient() {
               <h2 className="text-sm font-semibold text-[#2C2D33]">Import Companies</h2>
               <button
                 type="button"
-                onClick={() => setShowSample((v) => !v)}
+                onClick={downloadSampleCsv}
                 className={`ml-auto ${secondaryBtnCls}`}
               >
-                {showSample ? 'Hide sample' : 'View sample'}
+                Download sample CSV
               </button>
             </div>
 
-            {showSample && (
-              <div className="mt-3 rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] p-4">
-                <pre className="overflow-x-auto whitespace-pre text-xs leading-relaxed text-[#2C2D33]">{SAMPLE_PAYLOAD}</pre>
-                <p className="mt-2 text-xs text-[#6D717F]">
-                  company_name and website are mandatory. All other fields are optional.
-                </p>
-              </div>
-            )}
+            <p className="mt-2 text-xs text-[#6D717F]">
+              company_name and website are mandatory. Optional columns: industry, company_city,
+              company_state, company_country, employees, company_linkedin_url.
+            </p>
 
             <div
               role="button"

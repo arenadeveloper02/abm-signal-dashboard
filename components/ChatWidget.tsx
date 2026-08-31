@@ -207,7 +207,7 @@ export default function ChatWidget() {
           <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto bg-[#F7F8F9] px-4 py-3">
             {loadingData && (
               <div className="rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-xs text-[#575A66]">
-                Loading data\u2026 fetching all stored signals for context.
+                Loading data… fetching all stored signals for context.
               </div>
             )}
             {dataError !== null && !loadingData && (
@@ -217,9 +217,9 @@ export default function ChatWidget() {
             )}
             {messages.length === 0 && !loadingData && (
               <div className="rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-xs text-[#575A66]">
-                Hi! Ask me anything about your tracked companies and signals \u2014 for example
-                \u201cWhich companies raised funding recently?\u201d or \u201cHow many high alerts are
-                there?\u201d
+                Hi! Ask me anything about your tracked companies and signals — for example
+                “Which companies raised funding recently?” or “How many high alerts are
+                there?”
               </div>
             )}
             {messages.map((m, i) => (
@@ -238,7 +238,7 @@ export default function ChatWidget() {
             {sending && (
               <div className="flex justify-start">
                 <div className="rounded-2xl rounded-bl-sm border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#8A8D99]">
-                  Thinking\u2026
+                  Thinking…
                 </div>
               </div>
             )}
@@ -251,7 +251,7 @@ export default function ChatWidget() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleSend()
               }}
-              placeholder="Ask about your signals\u2026"
+              placeholder="Ask about your signals…"
               aria-label="Chat message"
               className="min-w-0 flex-1 rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#A7AAB2] focus:border-[#1A73E8] focus:outline-none"
             />
