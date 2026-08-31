@@ -340,19 +340,20 @@ export default function AccountSignalTrackerClient() {
           )
           return
         }
-        setToast(json.error ?? `Background analysis failed with status ${res.status}`)
+        setToast(`Background analysis failed: ${json.error ?? `status ${res.status}`}`)
         return
       }
       if (json.error) {
-        setToast(json.error)
+        setToast(`Background analysis failed: ${json.error}`)
         return
       }
       const processed =
         typeof json.companies_processed === 'number'
           ? json.companies_processed
           : companiesPayload.length
+      const totalSignals = typeof json.total_signals === 'number' ? json.total_signals : 0
       setToast(
-        `Analysis for "${analyzeFileName}" completed — ${processed} compan${processed === 1 ? 'y' : 'ies'} processed. Refreshing stored signals…`
+        `Analysis complete for "${analyzeFileName}": ${processed} compan${processed === 1 ? 'y' : 'ies'} processed, ${totalSignals} signal${totalSignals === 1 ? '' : 's'} found.`
       )
       void fetchAllStored()
     } catch {
@@ -360,94 +361,89 @@ export default function AccountSignalTrackerClient() {
     }
   }
 
-  const handleSaveAnalyze = () => {
+  const handleSaveAnalyse = () => {
     if (importList.length === 0) {
       setImportError('Add at least one company before running Save & Analyse.')
       return
     }
     const invalid = importList.filter((c) => c.name.trim() === '' || websiteOf(c) === '')
     if (invalid.length > 0) {
-      setImportError('company_name and website are mandatory for every company.')
+      setImportError(
+        `${invalid.length} compan${invalid.length === 1 ? 'y is' : 'ies are'} missing a website — company_name and website are mandatory.`
+      )
       return
     }
     const companiesPayload = importList.map((c) => toApiCompany(c))
     const analyzeFileName =
       fileName !== '' ? fileName : `manual-${new Date().toISOString().slice(0, 10)}`
-    setImportError(null)
     setToast(
-      `Analysis started for ${importList.length} compan${importList.length === 1 ? 'y' : 'ies'}. It runs in the background — results appear on the dashboard when done.`
+      `Analysis started for ${companiesPayload.length} compan${companiesPayload.length === 1 ? 'y' : 'ies'}. This runs in the background and may take a few minutes.`
     )
     void runAnalyzeInBackground(companiesPayload, analyzeFileName)
     setImportList([])
     setFileName('')
+    setImportError(null)
     setView('dashboard')
   }
 
-  const canAddTyped = typedCompany.trim() !== '' && typedWebsite.trim() !== ''
+  const toastEl = toast ? (
+    <div className="fixed bottom-4 left-1/2 z-50 w-full max-w-md -translate-x-1/2 px-4" role="status">
+      <div className="flex items-start justify-between gap-3 rounded-xl bg-[#2C2D33] px-4 py-3 text-sm text-white shadow-lg">
+        <span>{toast}</span>
+        <button
+          type="button"
+          className="shrink-0 text-xs font-semibold text-[#A6ABB8] transition-colors hover:text-white"
+          onClick={() => setToast(null)}
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  ) : null
 
-  return (
-    <div className="min-h-screen bg-[#F7F8F9]">
-      <header className="sticky top-0 z-40 border-b border-[#E2E3E5] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#1A73E8]" aria-hidden="true" />
-            <h1 className="text-base font-semibold text-[#2C2D33]">ABM Signal Tracker</h1>
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setView('dashboard')}
-              className={view === 'dashboard' ? primaryBtnCls : secondaryBtnCls}
-              aria-pressed={view === 'dashboard'}
-            >
-              Dashboard
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('import')}
-              className={view === 'import' ? primaryBtnCls : secondaryBtnCls}
-              aria-pressed={view === 'import'}
-            >
-              Import Companies
-            </button>
-            <button
-              type="button"
-              onClick={() => void fetchAllStored()}
-              disabled={loadingStored}
-              className={secondaryBtnCls}
-            >
-              {loadingStored ? 'Refreshing…' : 'Refresh'}
+  if (view === 'import') {
+    const visibleRows = importList.slice(0, MAX_VISIBLE_ROWS)
+    const hiddenCount = importList.length - visibleRows.length
+    return (
+      <div className="min-h-screen bg-[#F7F8F9]">
+        <header className="border-b border-[#E2E3E5] bg-white">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+            <div>
+              <h1 className="text-lg font-semibold text-[#2C2D33]">Import Companies</h1>
+              <p className="text-xs text-[#6D717F]">
+                Upload a CSV or XLSX, or add companies manually, then run signal analysis.
+              </p>
+            </div>
+            <button type="button" className={secondaryBtnCls} onClick={() => setView('dashboard')}>
+              Back to dashboard
             </button>
           </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {view === 'dashboard' ? (
-          loadingStored ? (
-            <DashboardSkeleton />
-          ) : storedError ? (
-            <div
-              className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center"
-              role="alert"
-            >
-              <p className="text-3xl" aria-hidden="true">⚠️</p>
-              <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load stored signals</p>
-              <p className="mt-1 text-xs text-[#6D717F]">{storedError}</p>
+        </header>
+        <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+          <section className="rounded-2xl border border-[#E2E3E5] bg-white p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-[#2C2D33]">Upload a company list</h2>
               <button
                 type="button"
-                onClick={() => void fetchAllStored()}
-                className={`mt-4 ${primaryBtnCls}`}
+                className={secondaryBtnCls}
+                onClick={() => setShowSample((v) => !v)}
+                aria-expanded={showSample}
               >
-                Retry
+                {showSample ? 'Hide sample' : 'View sample'}
               </button>
             </div>
-          ) : storedResult ? (
-            <StoredSignalsDashboard result={storedResult} />
-          ) : null
-        ) : (
-          <div className="space-y-6">
-            <section
-              className={`rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#E2E3E5] bg-white'}`}
+            {showSample && (
+              <div className="mt-4">
+                <p className="text-xs text-[#6D717F]">
+                  company_name and website are mandatory. All other fields are optional.
+                </p>
+                <pre className="mt-2 max-h-80 overflow-auto rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] p-4 text-xs leading-5 text-[#2C2D33]">
+                  {SAMPLE_PAYLOAD}
+                </pre>
+              </div>
+            )}
+            <div
+              className={`mt-4 rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${isDragging ? 'border-[#1A73E8] bg-[#F3F8FE]' : 'border-[#E2E3E5] bg-white'}`}
               onDragOver={(e) => {
                 e.preventDefault()
                 setIsDragging(true)
@@ -463,26 +459,15 @@ export default function AccountSignalTrackerClient() {
                 Drag &amp; drop a CSV or XLSX file here
               </p>
               <p className="mt-1 text-xs text-[#6D717F]">
-                Columns company_name (or Company) and website are mandatory. All other fields are
-                optional and passed through as-is.
+                Columns company_name (or Company) and website are required for every row.
               </p>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={secondaryBtnCls}
-                >
-                  Browse files
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowSample((prev) => !prev)}
-                  className={secondaryBtnCls}
-                  aria-expanded={showSample}
-                >
-                  {showSample ? 'Hide sample' : 'View sample'}
-                </button>
-              </div>
+              <button
+                type="button"
+                className={`${secondaryBtnCls} mt-4`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Browse files
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -492,157 +477,158 @@ export default function AccountSignalTrackerClient() {
                   handleFiles(e.target.files)
                   e.target.value = ''
                 }}
-                aria-label="Upload company list file"
               />
               {fileName !== '' && (
-                <p className="mt-3 text-xs text-[#6D717F]">Loaded file: {fileName}</p>
+                <p className="mt-3 text-xs text-[#6D717F]">Loaded: {fileName}</p>
               )}
-              {showSample && (
-                <div className="mt-4 text-left">
-                  <p className="text-xs text-[#6D717F]">
-                    company_name and website are mandatory. All other fields are optional.
-                  </p>
-                  <pre className="mt-2 overflow-x-auto rounded-xl border border-[#E2E3E5] bg-[#F7F8F9] p-4 text-xs text-[#2C2D33]">
-                    <code>{SAMPLE_PAYLOAD}</code>
-                  </pre>
-                </div>
-              )}
-            </section>
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5">
-              <h2 className="text-sm font-semibold text-[#2C2D33]">Add a company manually</h2>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <input
-                  className={inputCls}
-                  placeholder="Company name"
-                  value={typedCompany}
-                  onChange={(e) => setTypedCompany(e.target.value)}
-                  aria-label="Company name"
-                />
-                <input
-                  className={inputCls}
-                  placeholder="position2.com"
-                  value={typedWebsite}
-                  onChange={(e) => setTypedWebsite(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && canAddTyped) handleAddTyped()
-                  }}
-                  aria-label="Company website"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddTyped}
-                  disabled={!canAddTyped}
-                  className={primaryBtnCls}
-                >
-                  Add
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-[#6D717F]">
-                company_name and website are mandatory. All other fields are optional.
-              </p>
-            </section>
-            {importError && (
-              <div
-                className="rounded-2xl border border-[#F5B5B5] bg-[#FEECEC] px-4 py-3 text-sm text-[#C21414]"
-                role="alert"
+            </div>
+          </section>
+          <section className="rounded-2xl border border-[#E2E3E5] bg-white p-6">
+            <h2 className="text-sm font-semibold text-[#2C2D33]">Add a company manually</h2>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <input
+                className={inputCls}
+                placeholder="Company name"
+                value={typedCompany}
+                onChange={(e) => setTypedCompany(e.target.value)}
+                aria-label="Company name"
+              />
+              <input
+                className={inputCls}
+                placeholder="position2.com"
+                value={typedWebsite}
+                onChange={(e) => setTypedWebsite(e.target.value)}
+                aria-label="Company website"
+              />
+              <button
+                type="button"
+                className={primaryBtnCls}
+                onClick={handleAddTyped}
+                disabled={typedCompany.trim() === '' || typedWebsite.trim() === ''}
               >
-                {importError}
+                Add
+              </button>
+            </div>
+          </section>
+          {importError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-[#F31A1A]/40 bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91313]"
+            >
+              {importError}
+            </div>
+          )}
+          <section className="rounded-2xl border border-[#E2E3E5] bg-white p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-[#2C2D33]">
+                Companies to analyse ({importList.length})
+              </h2>
+              <button
+                type="button"
+                className={primaryBtnCls}
+                onClick={handleSaveAnalyse}
+                disabled={importList.length === 0}
+              >
+                Save &amp; Analyse
+              </button>
+            </div>
+            {importList.length === 0 ? (
+              <p className="mt-4 text-sm text-[#6D717F]">
+                No companies added yet. Upload a file or add a company manually to get started.
+              </p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-[#E2E3E5] text-xs font-medium uppercase tracking-wide text-[#6D717F]">
+                      <th className="px-3 py-2">Company</th>
+                      <th className="px-3 py-2">Website</th>
+                      <th className="px-3 py-2">Location</th>
+                      <th className="px-3 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((c) => (
+                      <tr key={c.id} className="border-b border-[#F1F2F4]">
+                        <td className="px-3 py-2 font-medium text-[#2C2D33]">{c.name}</td>
+                        <td className="px-3 py-2 text-[#6D717F]">{websiteOf(c) || '—'}</td>
+                        <td className="px-3 py-2 text-[#6D717F]">{c.location || '—'}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-[#F31A1A] transition-colors hover:text-[#C21414]"
+                            onClick={() => handleRemove(c.id)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {hiddenCount > 0 && (
+                  <p className="mt-3 text-xs text-[#6D717F]">
+                    +{hiddenCount} more compan{hiddenCount === 1 ? 'y' : 'ies'} not shown (all will be analysed).
+                  </p>
+                )}
               </div>
             )}
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold text-[#2C2D33]">
-                  Companies to analyse ({importList.length})
-                </h2>
-                <div className="flex items-center gap-2">
-                  {importList.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImportList([])
-                        setFileName('')
-                        setImportError(null)
-                      }}
-                      className={secondaryBtnCls}
-                    >
-                      Clear list
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleSaveAnalyze}
-                    disabled={importList.length === 0}
-                    className={primaryBtnCls}
-                  >
-                    Save &amp; Analyse
-                  </button>
-                </div>
-              </div>
-              {importList.length === 0 ? (
-                <p className="mt-4 text-sm text-[#6D717F]">
-                  No companies added yet. Upload a file or add a company manually to begin.
-                </p>
-              ) : (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-[#E2E3E5] text-xs font-medium uppercase tracking-wide text-[#6D717F]">
-                        <th className="px-3 py-2">Company</th>
-                        <th className="px-3 py-2">Website</th>
-                        <th className="px-3 py-2">Location</th>
-                        <th className="px-3 py-2 text-right">Remove</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {importList.slice(0, MAX_VISIBLE_ROWS).map((c) => (
-                        <tr key={c.id} className="border-b border-[#F1F2F4]">
-                          <td className="px-3 py-2 font-medium text-[#2C2D33]">{c.name}</td>
-                          <td className="px-3 py-2 text-[#6D717F]">{websiteOf(c) || '—'}</td>
-                          <td className="px-3 py-2 text-[#6D717F]">{c.location || '—'}</td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleRemove(c.id)}
-                              className="text-xs font-medium text-[#C21414] hover:underline"
-                              aria-label={`Remove ${c.name}`}
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {importList.length > MAX_VISIBLE_ROWS && (
-                    <p className="mt-3 text-xs text-[#6D717F]">
-                      Showing the first {MAX_VISIBLE_ROWS} of {importList.length} companies. All will
-                      be analysed.
-                    </p>
-                  )}
-                </div>
-              )}
-            </section>
+          </section>
+        </main>
+        {toastEl}
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F7F8F9]">
+      <header className="border-b border-[#E2E3E5] bg-white">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+          <div>
+            <h1 className="text-lg font-semibold text-[#2C2D33]">ABM Signal Tracker</h1>
+            <p className="text-xs text-[#6D717F]">
+              Funding, C-suite, product and partnership signals across your tracked accounts.
+            </p>
           </div>
-        )}
-      </main>
-      {toast && (
-        <div
-          className="fixed bottom-4 left-1/2 z-50 w-full max-w-md -translate-x-1/2 rounded-2xl border border-[#E2E3E5] bg-white px-4 py-3 text-sm text-[#2C2D33] shadow-lg"
-          role="status"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <p>{toast}</p>
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setToast(null)}
-              className="text-xs font-medium text-[#6D717F] hover:text-[#2C2D33]"
-              aria-label="Dismiss notification"
+              className={secondaryBtnCls}
+              onClick={() => void fetchAllStored()}
+              disabled={loadingStored}
             >
-              ✕
+              {loadingStored ? 'Refreshing…' : 'Refresh'}
+            </button>
+            <button type="button" className={primaryBtnCls} onClick={() => setView('import')}>
+              Import companies
             </button>
           </div>
         </div>
-      )}
+      </header>
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        {loadingStored ? (
+          <DashboardSkeleton />
+        ) : storedError ? (
+          <div
+            className="rounded-2xl border border-[#F31A1A]/40 bg-white p-10 text-center"
+            role="alert"
+          >
+            <p className="text-3xl" aria-hidden="true">⚠️</p>
+            <p className="mt-3 text-sm font-medium text-[#2C2D33]">Could not load stored signals</p>
+            <p className="mt-1 text-xs text-[#6D717F]">{storedError}</p>
+            <button
+              type="button"
+              className={`${primaryBtnCls} mt-4`}
+              onClick={() => void fetchAllStored()}
+            >
+              Retry
+            </button>
+          </div>
+        ) : storedResult ? (
+          <StoredSignalsDashboard result={storedResult} />
+        ) : null}
+      </main>
+      {toastEl}
     </div>
   )
 }

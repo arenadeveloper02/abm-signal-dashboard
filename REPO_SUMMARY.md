@@ -1,25 +1,26 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-31T05:20:29.314Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-28T08:09:53.189Z.
 
 ## Overview
 
-Surgical edit: Import Companies flow now sends each company as { company_name, website } (both mandatory, enforced client-side for uploaded rows and manual adds), adds a 'View sample' secondary button that toggles the full sample JSON payload with the mandatory-fields note, and adds a website input (placeholder 'position2.com') to the manual add control. VERIFICATION: (1) Save & Analyse body line: body: JSON.stringify({ companies: companiesPayload, ... }) where companiesPayload = importList.map((c) => toApiCompany(c)) and toApiCompany returns { company_name: company.name, website: websiteOf(company), ...passthrough fields }. (2) Uploaded rows missing website are skipped with the existing inline importError message; manual add requires both fields (disabled button + inline error). (3) 'View sample' toggles the exact SAMPLE_PAYLOAD JSON in a <pre> block with the note 'company_name and website are mandatory. All other fields are optional.'. (4) Manual-add control has a second input with placeholder 'position2.com'. (5) Files modified: components/AccountSignalTrackerClient.tsx only (analyze route needs no change — it proxies the body as-is); prisma/schema.prisma echoed verbatim per database rule; package.json untouched. (6) Build passes: complete typed TSX, no new dependencies.
+ABM Signal Tracker dashboard — upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity. Fix: added the missing tailwind.config.ts required by structure validation.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 49
 
 ## Features
 
-- Company import payload sends { company_name, website } objects with optional passthrough fields
-- company_name and website enforced as mandatory for uploaded and manually added rows
-- View sample button toggling the full sample JSON payload with mandatory-fields note
-- Manual add control with company name and website inputs
-- Stored signals dashboard unchanged
+- Import companies via CSV/XLSX upload with company_name + website mandatory validation
+- Add a company manually with name and website inputs
+- Save & Analyse sends { company_name, website, ...passthrough } payloads to the analyse API
+- View sample button toggling a preformatted sample JSON payload
+- Stored signals dashboard with KPIs, company table and signal feed
+- Signal chat assistant grounded on stored signal data
 
 ## Tech Stack
 
-- Next.js 16.2.12 (App Router)
+- Next.js ^15.3.3 (App Router)
 - React 19.0.0
 - Tailwind CSS v3
 - TypeScript
@@ -180,7 +181,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-31T05:20:29.314Z
+- **Updated at:** 2026-08-28T08:09:53.189Z
 - **Request:** SCOPE LOCK — SURGICAL EDIT ONLY. Obey exactly. This is a small, targeted edit to the existing repo, NOT a regeneration. Do NOT modify, restyle, reformat, refactor, or 'improve' anything that already exists. NO design changes of any kind. Only make the three changes described below, and nothing else.
 
 GOAL: On the Import Companies screen (the import/upload flow with the 'Save & Analyse' action) and the 'Add a company manually' input, support a company WEBSITE alongside the company name, and add a button that reveals a sample file.
