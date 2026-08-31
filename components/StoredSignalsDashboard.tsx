@@ -42,6 +42,7 @@ import {
 
 interface StoredSignalsDashboardProps {
   result: StoredSignalsResult
+  onRefresh?: () => void | Promise<void>
 }
 
 interface EnrichedSignal {
@@ -404,6 +405,27 @@ function CompanyInfoSection({ company }: { company: StoredCompany }) {
   )
 }
 
+function TrashIcon() {
+  return (
+    <svg
+      width='16'
+      height='16'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      aria-hidden='true'
+    >
+      <polyline points='3 6 5 6 21 6' />
+      <path d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' />
+      <line x1='10' y1='11' x2='10' y2='17' />
+      <line x1='14' y1='11' x2='14' y2='17' />
+    </svg>
+  )
+}
+
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className='rounded-2xl border border-[#E2E3E5] bg-white p-5' aria-label={title}>
@@ -413,7 +435,7 @@ function ChartCard({ title, children }: { title: string; children: ReactNode }) 
   )
 }
 
-export default function StoredSignalsDashboard({ result }: StoredSignalsDashboardProps) {
+export default function StoredSignalsDashboard({ result, onRefresh }: StoredSignalsDashboardProps) {
   const [tab, setTab] = useState<TabKey>('overview')
   const [familyFilter, setFamilyFilter] = useState<'all' | Family>('all')
   const [severityFilter, setSeverityFilter] = useState<'all' | NormalizedSeverity>('all')
@@ -421,6 +443,8 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
   const [feedWeek, setFeedWeek] = useState<string | null>(null)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const companyByKey = useMemo(() => {
     const map = new Map<string, StoredCompany>()
@@ -476,6 +500,45 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
       })
       .sort((a, b) => b.signals.length - a.signals.length)
   }, [enriched, result.companies])
+
+  const handleDeleteCompany = async (company: StoredCompany, rowKey: string) => {
+    const name = (company.company_name ?? '').trim() || 'this company'
+    const confirmed = window.confirm(
+      `Delete "${name}"?\n\nThis will remove the company from tracking. This cannot be undone.`
+    )
+    if (!confirmed) return
+
+    setDeleteError(null)
+    setDeletingKey(rowKey)
+    try {
+      const res = await fetch('/api/delete-company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: name,
+          companyId: company.company_id ?? '',
+          confirm: true,
+          signalsOnly: false,
+        }),
+      })
+      let json: { error?: string } = {}
+      try {
+        json = (await res.json()) as { error?: string }
+      } catch {
+        json = {}
+      }
+      if (!res.ok) {
+        setDeleteError(json.error ?? `Delete failed with status ${res.status}`)
+        return
+      }
+      if (expandedCompany === rowKey) setExpandedCompany(null)
+      if (onRefresh) await onRefresh()
+    } catch {
+      setDeleteError('Could not reach the delete API. Please try again.')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
 
   const countsByType = useMemo(() => {
     const map = new Map<string, number>()
@@ -787,15 +850,20 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
 
         {tab === 'companies' && (
           <div className='rounded-2xl border border-[#E2E3E5] bg-white'>
+            {deleteError !== null && (
+              <div className='border-b border-[#FAA3A3] bg-[#FFF3F3] px-4 py-3 text-xs text-[#921010]' role='alert'>
+                {deleteError}
+              </div>
+            )}
             <div className='max-h-[70vh] overflow-auto rounded-2xl'>
               <table className='w-full min-w-[820px] text-sm'>
                 <thead>
                   <tr>
-                    {['Company', 'Industry', 'Total', 'Funding', 'C-Suite', 'Product', 'Partnership', 'Latest Signal'].map((h, i) => (
+                    {['Company', 'Industry', 'Total', 'Funding', 'C-Suite', 'Product', 'Partnership', 'Latest Signal', ''].map((h, i) => (
                       <th
-                        key={h}
+                        key={h === '' ? 'actions' : h}
                         className={`sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99] ${
-                          i >= 2 ? 'text-right' : 'text-left'
+                          i >= 2 && h !== '' ? 'text-right' : 'text-left'
                         }`}
                       >
                         {h}
@@ -806,13 +874,14 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                 <tbody>
                   {companyRows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className='px-4 py-12 text-center text-sm text-[#8A8D99]'>
+                      <td colSpan={9} className='px-4 py-12 text-center text-sm text-[#8A8D99]'>
                         No companies tracked yet. Import a company list to get started.
                       </td>
                     </tr>
                   ) : (
                     companyRows.map((r) => {
                       const expanded = expandedCompany === r.key
+                      const isDeleting = deletingKey === r.key
                       return (
                         <Fragment key={r.key}>
                           <tr
@@ -844,10 +913,29 @@ export default function StoredSignalsDashboard({ result }: StoredSignalsDashboar
                             <td className='px-4 py-3 text-right text-[#575A66]'>{r.company.by_family.product}</td>
                             <td className='px-4 py-3 text-right text-[#575A66]'>{r.company.by_family.partnership}</td>
                             <td className='px-4 py-3 text-right text-[#8A8D99]'>{r.latest ? relativeTime(r.latest.dateIso) : '\u2014'}</td>
+                            <td className='px-2 py-3 text-right'>
+                              <button
+                                type='button'
+                                aria-label={`Delete ${r.company.company_name}`}
+                                disabled={isDeleting || deletingKey !== null}
+                                title='Delete company'
+                                onClick={(ev) => {
+                                  ev.stopPropagation()
+                                  void handleDeleteCompany(r.company, r.key)
+                                }}
+                                className='inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8A8D99] transition-colors hover:bg-[#FFF3F3] hover:text-[#F31A1A] disabled:opacity-50'
+                              >
+                                {isDeleting ? (
+                                  <span className='text-[10px] font-semibold text-[#F31A1A]'>…</span>
+                                ) : (
+                                  <TrashIcon />
+                                )}
+                              </button>
+                            </td>
                           </tr>
                           {expanded && (
                             <tr className='border-b border-[#F0F1F2] last:border-b-0'>
-                              <td colSpan={8} className='bg-[#F7F8F9] px-6 py-5'>
+                              <td colSpan={9} className='bg-[#F7F8F9] px-6 py-5'>
                                 <div className='grid gap-4 lg:grid-cols-2'>
                                   <CompanyInfoSection company={r.company} />
                                   <div className='space-y-3'>

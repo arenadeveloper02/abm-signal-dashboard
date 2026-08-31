@@ -583,7 +583,7 @@ export default function AccountSignalTrackerClient() {
               </button>
             </div>
           ) : storedResult ? (
-            <StoredSignalsDashboard result={storedResult} />
+            <StoredSignalsDashboard result={storedResult} onRefresh={fetchAllStored} />
           ) : null}
         </main>
       )}
