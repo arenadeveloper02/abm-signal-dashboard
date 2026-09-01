@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 const DEFAULT_DELETE_API_URL =
-  'https://agent.thearena.ai/api/v2/workflows/94429fa9-03d4-4f93-b422-c0cfdebacd4c/execute'
+  'https://agent.thearena.ai/api/workflows/94429fa9-03d4-4f93-b422-c0cfdebacd4c/execute'
 
 // Prefer SIM_API_KEY / ABM_DELETE_API_KEY / ABM_API_KEY in the environment.
 const DEFAULT_SIM_API_KEY = 'sk-sim-obzfF9mr5hpsnuyOl6AP5njgk31gc19R'
