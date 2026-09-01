@@ -1,13 +1,13 @@
 # abm-signal-dashboard
 
-Edited abm-signal-dashboard. Changes: components/AccountSignalTrackerClient.tsx — in the Import section's 'Add a company manually' block, the second input (company website) placeholder was changed from 'position2.com' to 'website'. Placeholder string change only; no other logic, styling, state, or validation touched. prisma/schema.prisma is echoed verbatim (unchanged, per the database rule). app/not-found.tsx included per canonical requirement (unchanged content).
+Fixed Overview tab navigation: clicking the companies KPI card ('Companies with Signals' / Total Companies) now opens the Companies tab instead of the Signals tab. Files changed: components/OverviewTab.tsx (added optional target to the KPI card definition and onSelectKpi call for the companies card only), components/DashboardClient.tsx (handleSelectKpi accepts an optional target tab defaulting to 'signals' so all other cards keep their existing behavior). prisma/schema.prisma echoed verbatim — untouched per standing rule.
 
 ## Features
 
 - Responsive UI with Tailwind CSS
 - Next.js App Router pages and components
-- CSV/XLSX company import with manual add
-- Stored signals dashboard
+- ABM signal tracking dashboard with KPI cards, charts, and filterable feed
+- Companies KPI card navigates to the Companies tab
 
 ## Tech Stack
 

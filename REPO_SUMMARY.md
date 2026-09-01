@@ -1,21 +1,19 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-31T10:07:55.540Z.
+> Auto-maintained by Sim Development. Last updated: 2026-09-01T07:03:48.679Z.
 
 ## Overview
 
-ABM signal tracking dashboard: upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity, with a chat assistant grounded in stored signal data.
+Fixed the failing build: completed the truncated app/api/delete-company/route.ts POST handler (TS1127/TS1005) and rebuilt the broken JSX tail of components/StoredSignalsDashboard.tsx (TS17008/TS1005), implementing the requested change so the Overview 'Total Companies' card navigates to the Companies tab instead of the Signals tab. prisma/schema.prisma echoed unchanged.
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 48
+**File count:** 49
 
 ## Features
 
-- CSV/XLSX company import with manual add
-- Background signal analysis via ABM API
-- Stored signals dashboard with KPIs, charts and company drilldowns
-- Signal chat assistant grounded in all stored signals
-- Arena email gate with access-denied page
+- Overview 'Total Companies' card now navigates to the Companies tab
+- Complete delete-company API proxy route
+- Stored signals dashboard with Overview, Companies, Signals, Trends and Insights tabs
 
 ## Tech Stack
 
@@ -105,6 +103,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `lib/data.ts`
 - `lib/fetch-all-stored-signals.ts`
 - `lib/prisma.ts`
+- `lib/resolve-request-email.ts`
 - `lib/types.ts`
 - `lib/utils.ts`
 - `prisma/schema.prisma`
@@ -165,6 +164,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `lib/data.ts`
 - `lib/fetch-all-stored-signals.ts`
 - `lib/prisma.ts`
+- `lib/resolve-request-email.ts`
 - `lib/types.ts`
 - `lib/utils.ts`
 - `middleware.ts`
@@ -178,17 +178,17 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-31T10:07:55.540Z
+- **Updated at:** 2026-09-01T07:03:48.679Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-1. Import section — "Add a company manually": change one placeholder.
-   - There are two inputs: the first takes the company name, the second takes the company website.
-   - On the SECOND input (the website input), the placeholder is currently "position2.com". Change that placeholder text to "website".
-   - This is a placeholder string change only. Do not change the input's name, id, value, state, validation, required status, styling, layout, order, or the label. Do not touch the first (company name) input. Do not change anything else in the Import section or anywhere else in the app.
+1. Overview tab — fix the navigation target of the "Total Companies" card.
+   - In the Overview tab there is a stat card/block labelled "Total Companies". Clicking it currently navigates to the Signals tab.
+   - Change it so clicking it navigates to the Companies tab instead.
+   - This is a one-line change to the tab target of that card's existing click handler only. Do not change the card's label, value, icon, styling, layout, position, or the click handler's structure. Do not touch any other stat card on the Overview tab — their navigation targets must stay exactly as they are. Do not change the tab switching mechanism, the TabBar, or any tab component.
 
 Only touch the files/functions directly related to the points above.
 Do not change variable names, code style, or structure outside the scope of these changes.

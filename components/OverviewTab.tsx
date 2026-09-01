@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import KpiCard from '@/components/KpiCard'
-import type { Confidence, DashboardData, Family, KpiPill, Signal } from '@/lib/types'
+import type { Confidence, DashboardData, Family, KpiPill, Signal, TabKey } from '@/lib/types'
 import { FAMILIES, FAMILY_META } from '@/lib/utils'
 import {
   Bar,
@@ -19,7 +19,7 @@ import {
 
 interface OverviewTabProps {
   data: DashboardData
-  onSelectKpi: (family: 'all' | Family) => void
+  onSelectKpi: (family: 'all' | Family, target?: TabKey) => void
 }
 
 interface CardDef {
@@ -29,6 +29,7 @@ interface CardDef {
   accent: string
   spark: number[]
   family: 'all' | Family
+  target?: TabKey
   pills?: KpiPill[]
   selected?: boolean
 }
@@ -126,7 +127,7 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
   const spark = (key: 'total' | Family): number[] => trends.byMonth.map((m) => m[key])
 
   const cards: CardDef[] = [
-    { icon: '\u{1F3E2}', label: 'Companies with Signals', value: kpis.companiesWithSignals, accent: '#00A7D6', spark: spark('total'), family: 'all' },
+    { icon: '\u{1F3E2}', label: 'Companies with Signals', value: kpis.companiesWithSignals, accent: '#00A7D6', spark: spark('total'), family: 'all', target: 'companies' },
     {
       icon: '\u{1F4E1}',
       label: 'Total Signals',
@@ -252,7 +253,7 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
             sparkData={c.spark}
             pills={c.pills}
             selected={c.selected}
-            onClick={() => onSelectKpi(c.family)}
+            onClick={() => onSelectKpi(c.family, c.target)}
           />
         ))}
       </div>
@@ -307,100 +308,77 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
         <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Weekly signal trend chart">
           <h2 className="text-sm font-semibold text-[#A6ABB8]">Weekly Signal Trend (click point to filter feed)</h2>
           {data.signals.length === 0 ? (
-            <p className="mt-16 mb-16 text-center text-sm text-[#6D717F]">No data</p>
+            <p className="mt-16 text-center text-sm text-[#6D717F]">No signals yet.</p>
           ) : (
             <div className="mt-2 h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyData} margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="#2E313A" strokeDasharray="3 3" />
-                  <XAxis dataKey="label" stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 11 }} />
-                  <YAxis allowDecimals={false} stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#2E313A55' }} />
-                  <Bar dataKey="count" name="Signals" radius={[4, 4, 0, 0]}>
-                    {weeklyData.map((w) => (
-                      <Cell
-                        key={w.key}
-                        fill={feedWeek === null || feedWeek === w.key ? '#3BC884' : '#3BC88444'}
-                        cursor="pointer"
-                        onClick={() => toggleWeek(w.key)}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          <p className="mt-2 text-xs text-[#6D717F]">Click a bar to filter the recent signal feed by that week.</p>
-        </section>
-
-        <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Signal type breakdown chart">
-          <h2 className="text-sm font-semibold text-[#A6ABB8]">Signal Type Breakdown (click to filter feed)</h2>
-          {typeBreakdownTotal === 0 ? (
-            <p className="mt-16 mb-16 text-center text-sm text-[#6D717F]">No data</p>
-          ) : (
-            <>
-              <div className="mt-2 h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Pie
-                      data={typeBreakdownData}
-                      dataKey="count"
-                      nameKey="type"
-                      innerRadius={45}
-                      outerRadius={75}
-                      paddingAngle={2}
-                      stroke="#1B1D24"
-                    >
-                      {typeBreakdownData.map((t) => (
-                        <Cell
-                          key={t.type}
-                          fill={feedType === null || feedType === t.type ? t.color : `${t.color}44`}
-                          cursor="pointer"
-                          onClick={() => toggleType(t.type)}
-                        />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1" aria-label="Signal type legend">
-                {typeBreakdownData.slice(0, 6).map((t) => (
-                  <li key={t.type}>
-                    <button
-                      type="button"
-                      onClick={() => toggleType(t.type)}
-                      className="flex items-center gap-1.5 text-xs text-[#A6ABB8] transition-colors hover:text-white"
-                    >
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} aria-hidden="true" />
-                      <span className="max-w-[140px] truncate">{t.type}</span>
-                      <span className="text-[#6D717F]">{t.count}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Top industries chart">
-          <h2 className="text-sm font-semibold text-[#A6ABB8]">Top Industries by Signal Count (click to filter table)</h2>
-          {industryData.length === 0 ? (
-            <p className="mt-16 mb-16 text-center text-sm text-[#6D717F]">No data</p>
-          ) : (
-            <div className="mt-2 h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={industryData} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 8 }}>
-                  <XAxis type="number" allowDecimals={false} stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 11 }} />
-                  <YAxis type="category" dataKey="industry" width={130} stroke="#6D717F" tick={{ fill: '#D3D6DE', fontSize: 11 }} />
+                <BarChart data={weeklyData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+                  <CartesianGrid stroke="#2E313A" vertical={false} />
+                  <XAxis dataKey="label" stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 10 }} />
+                  <YAxis allowDecimals={false} width={28} stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                  <Bar dataKey="count" name="Signals" radius={[0, 6, 6, 0]} barSize={16}>
-                    {industryData.map((d) => (
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={20}>
+                    {weeklyData.map((w) => (
+                      <Cell key={w.key} cursor="pointer" fill={feedWeek === w.key ? '#3BC884' : '#1A73E8'} onClick={() => toggleWeek(w.key)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
+        <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Signal type breakdown chart">
+          <h2 className="text-sm font-semibold text-[#A6ABB8]">Signal Type Breakdown (click slice to filter feed)</h2>
+          {typeBreakdownTotal === 0 ? (
+            <p className="mt-16 text-center text-sm text-[#6D717F]">No signal types yet.</p>
+          ) : (
+            <div className="mt-2 h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={typeBreakdownData} dataKey="count" nameKey="type" innerRadius={42} outerRadius={75} paddingAngle={2} stroke="none">
+                    {typeBreakdownData.map((t) => (
                       <Cell
-                        key={d.industry}
-                        fill={feedIndustry === null || feedIndustry === d.industry ? '#00A7D6' : '#00A7D644'}
+                        key={t.type}
                         cursor="pointer"
-                        onClick={() => toggleIndustry(d.industry)}
+                        fill={t.color}
+                        opacity={feedType === null || feedType === t.type ? 1 : 0.35}
+                        onClick={() => toggleType(t.type)}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <ul className="mt-3 flex flex-wrap gap-3">
+            {typeBreakdownData.slice(0, 6).map((t) => (
+              <li key={t.type} className="flex items-center gap-1.5 text-[11px] text-[#A6ABB8]">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} aria-hidden="true" />
+                {t.type}
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Signals by industry chart">
+          <h2 className="text-sm font-semibold text-[#A6ABB8]">Signals by Industry (click bar to filter feed)</h2>
+          {industryData.length === 0 ? (
+            <p className="mt-16 text-center text-sm text-[#6D717F]">No industry data yet.</p>
+          ) : (
+            <div className="mt-2 h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={industryData} layout="vertical" margin={{ top: 5, right: 16, bottom: 5, left: 4 }}>
+                  <XAxis type="number" allowDecimals={false} stroke="#6D717F" tick={{ fill: '#A6ABB8', fontSize: 11 }} />
+                  <YAxis type="category" dataKey="industry" width={110} stroke="#6D717F" tick={{ fill: '#D3D6DE', fontSize: 10 }} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={14}>
+                    {industryData.map((b) => (
+                      <Cell
+                        key={b.industry}
+                        cursor="pointer"
+                        fill={b.color}
+                        opacity={feedIndustry === null || feedIndustry === b.industry ? 1 : 0.35}
+                        onClick={() => toggleIndustry(b.industry)}
                       />
                     ))}
                   </Bar>
@@ -408,111 +386,69 @@ export default function OverviewTab({ data, onSelectKpi }: OverviewTabProps) {
               </ResponsiveContainer>
             </div>
           )}
-          <p className="mt-2 text-xs text-[#6D717F]">Click a bar to filter the list by that industry.</p>
         </section>
       </div>
 
-      <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Recent signals">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold text-[#A6ABB8]">Recent Signals</h2>
-          {hasFeedFilter && (
-            <>
-              <span className="text-xs text-[#8A8F9C]">
-                Filtered by{feedWeek !== null ? ` week of ${selectedWeekLabel}` : ''}
-                {feedType !== null ? ` \u00b7 ${feedType}` : ''}
-                {feedIndustry !== null ? ` \u00b7 ${feedIndustry}` : ''}
+      <section className="rounded-2xl border border-[#2E313A] bg-[#1B1D24] p-5" aria-label="Recent signals feed">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[#A6ABB8]">
+            Recent Signals
+            {hasFeedFilter && (
+              <span className="ml-2 text-xs font-normal text-[#6D717F]">
+                filtered{feedWeek !== null ? ` · week of ${selectedWeekLabel}` : ''}
+                {feedType !== null ? ` · ${feedType}` : ''}
+                {feedIndustry !== null ? ` · ${feedIndustry}` : ''}
               </span>
-              <button
-                type="button"
-                onClick={clearFeedFilters}
-                className="rounded-full border border-[#2E313A] px-2.5 py-0.5 text-[11px] font-medium text-[#A6ABB8] transition-colors hover:border-[#F31A1A]/50 hover:text-white"
-              >
-                Clear filters
-              </button>
-            </>
+            )}
+          </h2>
+          {hasFeedFilter && (
+            <button
+              type="button"
+              onClick={clearFeedFilters}
+              className="rounded-lg border border-[#2E313A] px-3 py-1 text-xs font-medium text-[#A6ABB8] transition-colors hover:text-white"
+            >
+              Clear filters
+            </button>
           )}
-          <span className="ml-auto text-xs text-[#6D717F]">
-            {recentSignals.length} of {data.signals.length} signal{data.signals.length === 1 ? '' : 's'}
-          </span>
         </div>
         {recentSignals.length === 0 ? (
-          <p className="mt-16 mb-16 text-center text-sm text-[#6D717F]">
-            {data.signals.length === 0 ? 'No signals yet.' : 'No signals match the selected chart filters.'}
-          </p>
+          <p className="mt-10 text-center text-sm text-[#6D717F]">No signals match the current feed filters.</p>
         ) : (
-          <ul className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
-            {recentSignals.map((s, i) => {
-              const sev = severityOf(s.confidence)
-              const sevColor = SEVERITY_COLORS[sev]
+          <ul className="mt-4 space-y-3">
+            {recentSignals.slice(0, 12).map((s, i) => {
               const { headline, description } = splitHeadline(s.summary)
-              const industry = inferIndustry(s)
-              const d = new Date(s.date)
-              const dateLabel = Number.isNaN(d.getTime())
-                ? s.date
-                : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-              const hasUrl = s.source_url.trim() !== ''
-              const sourceName = s.source_name.trim()
+              const severity = severityOf(s.confidence)
               return (
-                <li
-                  key={`${s.company}-${s.signal_type}-${s.date}-${i}`}
-                  className="rounded-xl border border-[#2E313A] border-l-4 bg-[#22242C] p-3"
-                  style={{ borderLeftColor: sevColor }}
-                >
+                <li key={`${s.company}-${s.date}-${i}`} className="rounded-xl border border-[#2E313A] bg-[#22242C] p-4">
                   <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-white">{s.company}</span>
                     <span
-                      className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide"
-                      style={{ color: sevColor, borderColor: `${sevColor}55`, backgroundColor: `${sevColor}14` }}
-                    >
-                      {sev}
-                    </span>
-                    <span
-                      className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                      className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
                       style={{
-                        color: FAMILY_META[s.family].color,
-                        borderColor: `${FAMILY_META[s.family].color}55`,
-                        backgroundColor: `${FAMILY_META[s.family].color}14`,
+                        color: SEVERITY_COLORS[severity],
+                        borderColor: `${SEVERITY_COLORS[severity]}55`,
+                        backgroundColor: `${SEVERITY_COLORS[severity]}14`,
                       }}
                     >
+                      {severity}
+                    </span>
+                    <span className="rounded-full border border-[#2E313A] px-2 py-0.5 text-[10px] text-[#A6ABB8]">
                       {CATEGORY_LABEL[s.family]}
                     </span>
-                    <span className="ml-auto shrink-0 text-xs text-[#6D717F]">{dateLabel}</span>
+                    <span className="ml-auto text-xs text-[#6D717F]">{s.date}</span>
                   </div>
-                  <div className="mt-1.5">
-                    {hasUrl ? (
-                      <a
-                        href={s.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-bold text-[#76ABF1] hover:underline"
-                      >
-                        {s.company}
-                      </a>
-                    ) : (
-                      <span className="text-sm font-bold text-[#76ABF1]">{s.company}</span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-sm font-semibold leading-snug text-white">{headline}</p>
-                  {description !== '' && (
-                    <p className="mt-0.5 text-xs leading-relaxed text-[#8C919E] line-clamp-2">{description}</p>
+                  <p className="mt-2 text-sm text-[#D3D6DE]">{headline}</p>
+                  {description !== '' && <p className="mt-1 text-xs text-[#A6ABB8]">{description}</p>}
+                  {s.source_url !== '' && (
+                    <a
+                      href={s.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-xs text-[#1A73E8] hover:underline"
+                    >
+                      {s.source_name === '' ? 'Source' : s.source_name}
+                    </a>
                   )}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center rounded-full border border-[#2E313A] bg-[#1B1D24] px-2 py-0.5 text-[10px] font-medium text-[#D3D6DE]">
-                      {industry}
-                    </span>
-                    {sourceName !== '' &&
-                      (hasUrl ? (
-                        <a
-                          href={s.source_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-medium text-[#76ABF1] hover:underline"
-                        >
-                          {sourceName}
-                        </a>
-                      ) : (
-                        <span className="text-xs text-[#8A8F9C]">{sourceName}</span>
-                      ))}
-                  </div>
                 </li>
               )
             })}
