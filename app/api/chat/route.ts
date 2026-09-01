@@ -40,6 +40,18 @@ function parseContext(raw: unknown): string {
   return raw.length > MAX_CONTEXT_CHARS ? raw.slice(0, MAX_CONTEXT_CHARS) : raw
 }
 
+function extractReply(raw: unknown): string {
+  if (!isRecord(raw)) return ''
+  const choices = raw.choices
+  if (!Array.isArray(choices) || choices.length === 0) return ''
+  const first: unknown = choices[0]
+  if (!isRecord(first)) return ''
+  const message = first.message
+  if (!isRecord(message)) return ''
+  const content = message.content
+  return typeof content === 'string' ? content.trim() : ''
+}
+
 export async function POST(request: Request) {
   const apiKey = getApiKey()
   if (apiKey === '') {
@@ -64,11 +76,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No messages provided' }, { status: 400 })
   }
 
-  const systemPrompt =
+  const basePrompt =
     'You are Signal Assistant, a helpful analyst for an ABM (account-based marketing) signal dashboard. ' +
     'Answer questions using ONLY the JSON signal data provided below. Be concise and specific: name companies, counts, dates and signal types when relevant. ' +
-    'If the data does not contain the answer, say so plainly.' +
-    (context !== '' ? `\n\nSIGNAL DATA (JSON):\n${context}` : '\n\nNo signal data is currently available.')
+    'If the data does not contain the answer, say so clearly instead of guessing. Keep answers short and skimmable.'
+
+  const systemPrompt =
+    context !== ''
+      ? `${basePrompt}\n\nSIGNAL DATA (JSON):\n${context}`
+      : `${basePrompt}\n\nNo signal data is currently available; tell the user that data could not be loaded when they ask data questions.`
 
   try {
     const upstream = await fetch(OPENAI_URL, {
@@ -81,23 +97,14 @@ export async function POST(request: Request) {
         model: 'gpt-4o-mini',
         temperature: 0.2,
         max_tokens: 700,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-        ],
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
       }),
       cache: 'no-store',
     })
 
     if (!upstream.ok) {
-      let detail = ''
-      try {
-        detail = (await upstream.text()).slice(0, 300)
-      } catch {
-        detail = ''
-      }
       return NextResponse.json(
-        { error: `Chat model request failed (status ${upstream.status}). ${detail}`.trim() },
+        { error: `Chat provider responded with status ${upstream.status}` },
         { status: 502 }
       )
     }
@@ -109,27 +116,16 @@ export async function POST(request: Request) {
       raw = null
     }
 
-    let reply = ''
-    if (isRecord(raw)) {
-      const choices = raw.choices
-      if (Array.isArray(choices) && choices.length > 0) {
-        const first: unknown = choices[0]
-        if (isRecord(first)) {
-          const message = first.message
-          if (isRecord(message) && typeof message.content === 'string') {
-            reply = message.content.trim()
-          }
-        }
-      }
-    }
-
+    const reply = extractReply(raw)
     if (reply === '') {
-      return NextResponse.json({ error: 'The chat model returned an empty response.' }, { status: 502 })
+      return NextResponse.json(
+        { error: 'Chat provider returned an empty response. Please try again.' },
+        { status: 502 }
+      )
     }
 
     return NextResponse.json({ reply })
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : 'Unknown network error'
-    return NextResponse.json({ error: `Could not reach the chat model: ${detail}` }, { status: 502 })
+  } catch {
+    return NextResponse.json({ error: 'Could not reach the chat provider' }, { status: 502 })
   }
 }

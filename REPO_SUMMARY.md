@@ -1,22 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-09-01T10:23:18.566Z.
+> Auto-maintained by Sim Development. Last updated: 2026-09-01T10:49:01.410Z.
 
 ## Overview
 
-ABM Signal Tracker — upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity, with a stored-signals dashboard and an AI chat assistant.
+ABM Signal Tracker dashboard: upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity, with a chat assistant over stored signal data.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 50
 
 ## Features
 
-- Company list import (CSV/XLSX)
-- Stored signals dashboard with KPIs, charts and company drill-down
-- Signal severity and type filtering
-- Weekly trend, family and type breakdown charts
-- AI chat assistant over stored signal data
-- Arena email gating via middleware
+- Stored signal dashboard with KPI cards, charts and tabs
+- Company import via CSV/XLSX with background analysis
+- Signal feed with severity, type, family and week filters
+- Company table with expandable info and signal history
+- Signal Assistant chat powered by OpenAI over stored data
+- Arena email gating via middleware and httpOnly cookie
 
 ## Tech Stack
 
@@ -183,7 +183,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-09-01T10:23:18.566Z
+- **Updated at:** 2026-09-01T10:49:01.410Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 DEPLOY ONLY — NO CODE CHANGES.
