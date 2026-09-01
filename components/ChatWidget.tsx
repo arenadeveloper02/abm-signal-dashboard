@@ -1,8 +1,6 @@
-"use client"
+'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { StoredSignal, StoredSignalsResult } from '@/lib/types'
-import { fetchAllStoredSignals } from '@/lib/fetch-all-stored-signals'
 import { useOptionalArenaEmailId } from '@/components/arena-email-provider'
 
 interface ChatMessage {
@@ -10,86 +8,26 @@ interface ChatMessage {
   content: string
 }
 
+interface HistorySession {
+  id: string
+  title: string
+  created_at: string
+}
+
 interface ChatApiResponse {
   reply?: string
+  id?: string
   error?: string
 }
 
-const MAX_CONTEXT_CHARS = 350000
-const HISTORY_STORAGE_KEY = 'abm-signal-chat-history'
-const MAX_STORED_MESSAGES = 40
-
-function buildContext(result: StoredSignalsResult): string {
-  const companies = (result.companies ?? []).map((c) => ({
-    name: c.company_name,
-    industry: c.industry,
-    hq: c.hq,
-    website: c.website,
-    total: c.total,
-    by_family: c.by_family,
-  }))
-  const compactSignals = result.signals.map((s: StoredSignal) => ({
-    company: (s.company_name ?? '').trim() !== '' ? s.company_name : s.company,
-    family: s.signal_family,
-    type: s.signal_type,
-    confidence: s.confidence,
-    date: (s.announcement_date ?? '').trim() !== '' ? s.announcement_date : s.run_date,
-    summary: (s.summary ?? '').slice(0, 300),
-    source: s.source_name,
-  }))
-  const ctx = {
-    totals: {
-      total_signals: result.signals.length,
-      total_companies: companies.length,
-      api_total_companies: result.total_companies,
-      api_total_signals: result.totals?.total_signals,
-    },
-    dashboard: result.dashboard ?? {},
-    counts_by_family: result.counts_by_family ?? {},
-    counts_by_alert: result.counts_by_alert ?? {},
-    counts_by_category: result.counts_by_category ?? {},
-    companies,
-    signals: compactSignals,
-  }
-  let str = JSON.stringify(ctx)
-  if (str.length > MAX_CONTEXT_CHARS) {
-    str = str.slice(0, MAX_CONTEXT_CHARS)
-  }
-  return str
+interface HistoryApiResponse {
+  sessions?: HistorySession[]
+  error?: string
 }
 
-function loadStoredHistory(): ChatMessage[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.sessionStorage.getItem(HISTORY_STORAGE_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    const out: ChatMessage[] = []
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue
-      const role = (item as { role?: unknown }).role
-      const content = (item as { content?: unknown }).content
-      if ((role === 'user' || role === 'assistant') && typeof content === 'string' && content.trim() !== '') {
-        out.push({ role, content })
-      }
-    }
-    return out.slice(-MAX_STORED_MESSAGES)
-  } catch {
-    return []
-  }
-}
-
-function saveStoredHistory(messages: ChatMessage[]): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.sessionStorage.setItem(
-      HISTORY_STORAGE_KEY,
-      JSON.stringify(messages.slice(-MAX_STORED_MESSAGES))
-    )
-  } catch {
-    // ignore quota / private-mode failures
-  }
+interface HistoryByIdApiResponse {
+  messages?: ChatMessage[]
+  error?: string
 }
 
 function ChatIcon() {
@@ -129,95 +67,135 @@ function CloseIcon() {
   )
 }
 
+function formatSessionDate(value: string): string {
+  if (value.trim() === '') return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 export default function ChatWidget() {
   const email = useOptionalArenaEmailId()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [historyReady, setHistoryReady] = useState(false)
+  const [sessions, setSessions] = useState<HistorySession[]>([])
+  const [sessionId, setSessionId] = useState('')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const [loadingData, setLoadingData] = useState(false)
-  const [dataError, setDataError] = useState<string | null>(null)
-  const contextRef = useRef<string | null>(null)
-  const loadPromiseRef = useRef<Promise<string> | null>(null)
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const [loadingTranscript, setLoadingTranscript] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    setMessages(loadStoredHistory())
-    setHistoryReady(true)
-  }, [])
-
-  useEffect(() => {
-    if (!historyReady) return
-    saveStoredHistory(messages)
-  }, [messages, historyReady])
 
   useEffect(() => {
     const list = listRef.current
     if (!list) return
     list.scrollTop = list.scrollHeight
-  }, [messages, sending, open])
+  }, [messages, sending, open, loadingTranscript])
 
-  const loadContext = useCallback((): Promise<string> => {
-    if (contextRef.current !== null) return Promise.resolve(contextRef.current)
-    if (loadPromiseRef.current !== null) return loadPromiseRef.current
-    const promise = (async () => {
-      setLoadingData(true)
-      setDataError(null)
+  const loadSessions = useCallback(async (): Promise<void> => {
+    if (!email) {
+      setSessions([])
+      return
+    }
+    setLoadingSessions(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/vimi/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      let json: HistoryApiResponse = {}
       try {
-        const result = await fetchAllStoredSignals(email ?? undefined)
-        const ctx = buildContext(result)
-        contextRef.current = ctx
-        return ctx
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Could not load signal data.'
-        setDataError(message)
-        throw new Error(message)
-      } finally {
-        setLoadingData(false)
-        loadPromiseRef.current = null
+        json = (await res.json()) as HistoryApiResponse
+      } catch {
+        json = {}
       }
-    })()
-    loadPromiseRef.current = promise
-    return promise
+      if (!res.ok) {
+        setError(json.error ?? `Could not load chat history (${res.status}).`)
+        setSessions([])
+        return
+      }
+      setSessions(Array.isArray(json.sessions) ? json.sessions : [])
+    } catch {
+      setError('Could not reach the chat history API.')
+      setSessions([])
+    } finally {
+      setLoadingSessions(false)
+    }
   }, [email])
 
   const handleToggle = () => {
     const next = !open
     setOpen(next)
-    if (next && contextRef.current === null) {
-      void loadContext().catch(() => undefined)
+    if (next) {
+      void loadSessions()
     }
   }
 
-  const handleClearHistory = () => {
+  const handleNewChat = () => {
+    setSessionId('')
     setMessages([])
-    saveStoredHistory([])
+    setError(null)
+  }
+
+  const handleSelectSession = async (id: string) => {
+    if (!email || id === '' || loadingTranscript) return
+    setSessionId(id)
+    setLoadingTranscript(true)
+    setError(null)
+    setMessages([])
+    try {
+      const res = await fetch('/api/vimi/history-by-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, id }),
+      })
+      let json: HistoryByIdApiResponse = {}
+      try {
+        json = (await res.json()) as HistoryByIdApiResponse
+      } catch {
+        json = {}
+      }
+      if (!res.ok) {
+        setError(json.error ?? `Could not load this chat (${res.status}).`)
+        return
+      }
+      setMessages(Array.isArray(json.messages) ? json.messages : [])
+    } catch {
+      setError('Could not reach the chat transcript API.')
+    } finally {
+      setLoadingTranscript(false)
+    }
   }
 
   const handleSend = async () => {
     const question = input.trim()
     if (question === '' || sending) return
-    // Full conversation history + new user turn — sent for follow-ups
-    const nextMessages: ChatMessage[] = [...messages, { role: 'user' as const, content: question }].slice(
-      -MAX_STORED_MESSAGES
-    )
-    setMessages(nextMessages)
+    if (!email) {
+      setError('Sign in with an email to use chat.')
+      return
+    }
+
+    setMessages((prev) => [...prev, { role: 'user', content: question }])
     setInput('')
     setSending(true)
+    setError(null)
+
     try {
-      let ctx = ''
-      try {
-        ctx = await loadContext()
-      } catch {
-        ctx = ''
-      }
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/vimi/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: nextMessages,
-          context: ctx,
+          email,
+          input: question,
+          id: sessionId,
         }),
       })
       let json: ChatApiResponse = {}
@@ -226,16 +204,21 @@ export default function ChatWidget() {
       } catch {
         json = {}
       }
+
       const reply =
         json.reply ?? json.error ?? 'Sorry, I could not get an answer right now. Please try again.'
-      setMessages((prev) => [...prev, { role: 'assistant' as const, content: reply }].slice(-MAX_STORED_MESSAGES))
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+
+      const nextId = typeof json.id === 'string' ? json.id.trim() : ''
+      if (nextId !== '') {
+        setSessionId(nextId)
+        void loadSessions()
+      }
     } catch {
-      setMessages((prev) =>
-        [
-          ...prev,
-          { role: 'assistant' as const, content: 'Could not reach the chat API. Please try again.' },
-        ].slice(-MAX_STORED_MESSAGES)
-      )
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: 'Could not reach the chat API. Please try again.' },
+      ])
     } finally {
       setSending(false)
     }
@@ -245,96 +228,135 @@ export default function ChatWidget() {
     <>
       {open && (
         <div
-          className="fixed bottom-24 right-6 z-50 flex h-[520px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[#E2E3E5] bg-white shadow-[0_8px_32px_rgba(44,45,51,0.16)]"
+          className="fixed bottom-24 right-6 z-50 flex h-[560px] w-[560px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#E2E3E5] bg-white shadow-[0_8px_32px_rgba(44,45,51,0.16)]"
           role="dialog"
           aria-label="Signal data chat assistant"
         >
-          <div className="flex items-center gap-2 bg-[#1A73E8] px-4 py-3">
-            <span className="text-white" aria-hidden="true">
-              <ChatIcon />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white">Signal Assistant</p>
-              <p className="truncate text-[11px] text-white/80">Ask about your ABM signal data</p>
-            </div>
-            {messages.length > 0 && (
+          <aside className="flex w-[180px] shrink-0 flex-col border-r border-[#E2E3E5] bg-[#F7F8F9]">
+            <div className="border-b border-[#E2E3E5] p-3">
               <button
                 type="button"
-                onClick={handleClearHistory}
-                aria-label="Clear chat history"
-                className="rounded-lg px-2 py-1 text-[11px] font-medium text-white/90 transition-colors hover:bg-white/15"
+                onClick={handleNewChat}
+                className="w-full rounded-xl bg-[#1A73E8] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#155CBA]"
               >
-                Clear
+                New chat
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close chat"
-              className="rounded-lg p-1.5 text-white/90 transition-colors hover:bg-white/15"
-            >
-              <CloseIcon />
-            </button>
-          </div>
-          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto bg-[#F7F8F9] px-4 py-3">
-            {loadingData && (
-              <div className="rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-xs text-[#575A66]">
-                Loading data… fetching all stored signals for context.
+            </div>
+            <div className="flex-1 space-y-1 overflow-y-auto p-2">
+              {loadingSessions && (
+                <p className="px-2 py-2 text-[11px] text-[#8A8D99]">Loading chats…</p>
+              )}
+              {!loadingSessions && sessions.length === 0 && (
+                <p className="px-2 py-2 text-[11px] text-[#8A8D99]">No past chats yet.</p>
+              )}
+              {sessions.map((s) => {
+                const active = s.id === sessionId
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => void handleSelectSession(s.id)}
+                    className={`w-full rounded-xl px-2.5 py-2 text-left transition-colors ${
+                      active ? 'bg-white shadow-sm ring-1 ring-[#E2E3E5]' : 'hover:bg-white/80'
+                    }`}
+                  >
+                    <p className="truncate text-xs font-medium text-[#2C2D33]">{s.title}</p>
+                    {s.created_at !== '' && (
+                      <p className="mt-0.5 truncate text-[10px] text-[#8A8D99]">
+                        {formatSessionDate(s.created_at)}
+                      </p>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-center gap-2 bg-[#1A73E8] px-4 py-3">
+              <span className="text-white" aria-hidden="true">
+                <ChatIcon />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white">Signal Assistant</p>
+                <p className="truncate text-[11px] text-white/80">
+                  {sessionId !== '' ? 'Continuing chat' : 'New chat'}
+                </p>
               </div>
-            )}
-            {dataError !== null && !loadingData && (
-              <div className="rounded-xl border border-[#FAA3A3] bg-[#FFF3F3] px-3 py-2 text-xs text-[#921010]">
-                {dataError} Answers may be limited until data loads.
-              </div>
-            )}
-            {messages.length === 0 && !loadingData && (
-              <div className="rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-xs text-[#575A66]">
-                Hi! Ask me anything about your tracked companies and signals — for example
-                “Which companies raised funding recently?” or “How many high alerts are
-                there?”
-              </div>
-            )}
-            {messages.map((m, i) => (
-              <div key={`msg-${i}`} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close chat"
+                className="rounded-lg p-1.5 text-white/90 transition-colors hover:bg-white/15"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto bg-[#F7F8F9] px-4 py-3">
+              {error !== null && (
+                <div className="rounded-xl border border-[#FAA3A3] bg-[#FFF3F3] px-3 py-2 text-xs text-[#921010]">
+                  {error}
+                </div>
+              )}
+              {loadingTranscript && (
+                <div className="rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-xs text-[#575A66]">
+                  Loading conversation…
+                </div>
+              )}
+              {!loadingTranscript && messages.length === 0 && (
+                <div className="rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-xs text-[#575A66]">
+                  Hi! Ask me anything about your tracked companies and signals — for example
+                  “Which companies raised funding recently?” or “How many high alerts are
+                  there?”
+                </div>
+              )}
+              {messages.map((m, i) => (
                 <div
-                  className={
-                    m.role === 'user'
-                      ? 'max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-[#1A73E8] px-3 py-2 text-sm text-white'
-                      : 'max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33]'
-                  }
+                  key={`msg-${i}-${m.role}`}
+                  className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
                 >
-                  {m.content}
+                  <div
+                    className={
+                      m.role === 'user'
+                        ? 'max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-[#1A73E8] px-3 py-2 text-sm text-white'
+                        : 'max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33]'
+                    }
+                  >
+                    {m.content}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {sending && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-sm border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#8A8D99]">
-                  Thinking…
+              ))}
+              {sending && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl rounded-bl-sm border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#8A8D99]">
+                    Thinking…
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 border-t border-[#E2E3E5] bg-white px-3 py-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleSend()
-              }}
-              placeholder="Ask about your signals…"
-              aria-label="Chat message"
-              className="min-w-0 flex-1 rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#A7AAB2] focus:border-[#1A73E8] focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={sending || input.trim() === ''}
-              className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
-            >
-              Send
-            </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 border-t border-[#E2E3E5] bg-white px-3 py-3">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSend()
+                }}
+                placeholder="Ask about your signals…"
+                aria-label="Chat message"
+                className="min-w-0 flex-1 rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#A7AAB2] focus:border-[#1A73E8] focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={sending || input.trim() === '' || !email}
+                className="rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
+              >
+                Send
+              </button>
+            </div>
           </div>
         </div>
       )}
