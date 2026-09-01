@@ -13,6 +13,7 @@ import type {
 } from '@/lib/types'
 import TabBar from '@/components/TabBar'
 import KpiCard from '@/components/KpiCard'
+import { useArenaEmailId } from '@/components/arena-email-provider'
 import {
   FAMILIES,
   FAMILY_META,
@@ -96,6 +97,22 @@ const TYPE_PALETTE = ['#B364D7', '#F8528F', '#3BC884', '#FB8145', '#DFC612', '#0
 
 const inputCls =
   'rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#2C2D33] placeholder-[#A7AAB2] focus:border-[#1A73E8] focus:outline-none'
+
+const cardCls = 'rounded-2xl border border-[#E2E3E5] bg-white p-5'
+
+const cardTitleCls = 'text-sm font-semibold text-[#575A66]'
+
+const COMPANY_COLUMNS: { label: string; align: 'left' | 'right' }[] = [
+  { label: 'Company', align: 'left' },
+  { label: 'Industry', align: 'left' },
+  { label: 'Total', align: 'right' },
+  { label: 'Funding', align: 'right' },
+  { label: 'C-Suite', align: 'right' },
+  { label: 'Product', align: 'right' },
+  { label: 'Partnership', align: 'right' },
+  { label: 'Last Activity', align: 'right' },
+  { label: 'Actions', align: 'right' },
+]
 
 function typeColor(label: string): string {
   let hash = 0
@@ -182,13 +199,20 @@ function NoData() {
   return <p className="mt-16 mb-16 text-center text-sm text-[#8A8D99]">No data yet</p>
 }
 
+interface DeletePayload {
+  error?: string
+  detail?: string
+}
+
 export default function StoredSignalsDashboard({ result, onRefresh }: StoredSignalsDashboardProps) {
+  const email = useArenaEmailId()
   const [tab, setTab] = useState<TabKey>('overview')
   const [search, setSearch] = useState('')
   const [severityFilter, setSeverityFilter] = useState<'all' | NormalizedSeverity>('all')
   const [familyFilter, setFamilyFilter] = useState<'all' | Family>('all')
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const companies = useMemo<StoredCompany[]>(() => result.companies ?? [], [result])
 
@@ -247,6 +271,8 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
   }, [enriched])
 
   const typeTotal = useMemo(() => typeData.reduce((acc, t) => acc + t.count, 0), [typeData])
+
+  const topTypes = useMemo(() => typeData.slice(0, 8), [typeData])
 
   const weeklyData = useMemo<WeekBucket[]>(() => {
     const currentWeek = weekStartOf(new Date())
@@ -308,6 +334,15 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       .sort((a, b) => b.signals.length - a.signals.length)
   }, [companies, enriched])
 
+  const filteredCompanies = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (q === '') return companyRows
+    return companyRows.filter((r) => {
+      const name = (r.company.company_name ?? '').toLowerCase()
+      return name.includes(q) || industryOf(r.company).toLowerCase().includes(q)
+    })
+  }, [companyRows, search])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return enriched.filter((e) => {
@@ -322,6 +357,18 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
   }, [enriched, severityFilter, familyFilter, search])
 
   const insights = useMemo(() => enriched.filter((e) => e.severity === 'HIGH'), [enriched])
+
+  const topCompaniesData = useMemo(
+    () =>
+      companyRows
+        .filter((r) => r.signals.length > 0)
+        .slice(0, 10)
+        .map((r) => ({
+          company: (r.company.company_name ?? '').trim() !== '' ? (r.company.company_name ?? '').trim() : '\u2014',
+          count: r.signals.length,
+        })),
+    [companyRows]
+  )
 
   const totalCompanies = result.total_companies ?? companies.length
   const totalSignals = enriched.length
@@ -345,13 +392,47 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
     { icon: '\u{1F4CA}', label: 'Signal Types', value: typeData.length, accent: '#B364D7', spark: typeData.map((t) => t.count), target: 'trends' },
   ]
 
-  const handleRefresh = async () => {
-    if (!onRefresh || refreshing) return
-    setRefreshing(true)
+  const famCountOf = (row: CompanyRowData, fam: Family): number =>
+    row.signals.filter((e) => (e.s.signal_family ?? '').toLowerCase() === fam).length
+
+  const toggleCompany = (key: string) => {
+    setExpandedCompany((prev) => (prev === key ? null : key))
+  }
+
+  const handleDelete = async (row: CompanyRowData): Promise<void> => {
+    if (deletingKey !== null) return
+    const name = (row.company.company_name ?? '').trim()
+    const confirmed = window.confirm(`Delete ${name !== '' ? name : 'this company'} and all of its signals? This cannot be undone.`)
+    if (!confirmed) return
+    setDeletingKey(row.key)
+    setDeleteError(null)
     try {
-      await onRefresh()
+      const res = await fetch('/api/delete-company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          company: name,
+          companyId: row.company.company_id,
+          confirm: true,
+        }),
+      })
+      if (!res.ok) {
+        let message = `Delete failed with status ${res.status}`
+        try {
+          const json = (await res.json()) as DeletePayload
+          if (json.error) message = json.detail ? `${json.error}: ${json.detail}` : json.error
+        } catch {
+          // keep default message
+        }
+        setDeleteError(message)
+        return
+      }
+      if (onRefresh) await onRefresh()
+    } catch {
+      setDeleteError('Could not reach the delete API. Please try again.')
     } finally {
-      setRefreshing(false)
+      setDeletingKey(null)
     }
   }
 
@@ -362,30 +443,15 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F8F9]">
-      <header className="border-b border-[#E2E3E5] bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-4">
-          <div>
-            <h1 className="text-lg font-semibold text-[#2C2D33]">ABM Signal Tracker</h1>
-            <p className="text-xs text-[#8A8D99]">
-              {formatNumber(totalCompanies)} compan{totalCompanies === 1 ? 'y' : 'ies'} tracked {'\u00b7'}{' '}
-              {formatNumber(totalSignals)} significant signal{totalSignals === 1 ? '' : 's'}
-            </p>
-          </div>
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={() => void handleRefresh()}
-              disabled={refreshing}
-              className="ml-auto rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60"
-            >
-              {refreshing ? 'Refreshing\u2026' : 'Refresh Dashboard'}
-            </button>
-          )}
-        </div>
-      </header>
+    <div className="bg-[#F7F8F9]">
       <TabBar active={tab} onChange={setTab} />
-      <main className="mx-auto max-w-7xl px-4 py-6" role="tabpanel" aria-label={`${tab} panel`}>
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+        {deleteError !== null && (
+          <div role="alert" className="rounded-xl border border-[#F31A1A]/40 bg-[#F31A1A]/5 px-4 py-3 text-sm text-[#B00020]">
+            {deleteError}
+          </div>
+        )}
+
         {tab === 'overview' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -403,39 +469,49 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
               ))}
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Weekly signal trend chart">
-                <h2 className="text-sm font-semibold text-[#575A66]">Weekly Signal Trend (8 Weeks)</h2>
+              <section className={cardCls} aria-label="Signals by family chart">
+                <h2 className={cardTitleCls}>Signals by Family</h2>
                 {enriched.length === 0 ? (
                   <NoData />
                 ) : (
-                  <div className="mt-2 h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={weeklyData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-                        <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
-                        <XAxis dataKey="label" stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
-                        <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
-                        <Bar dataKey="count" name="Signals" fill="#1A73E8" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <>
+                    <div className="mt-2 h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={famData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3} stroke="none">
+                            {famData.map((d) => (
+                              <Cell key={d.name} fill={d.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={tooltipStyle} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <ul className="mt-3 flex flex-wrap gap-4">
+                      {famData.map((d) => (
+                        <li key={d.name} className="flex items-center gap-2 text-xs text-[#575A66]">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} aria-hidden="true" />
+                          {d.name} {'\u00b7'} <span className="font-medium text-[#2C2D33]">{d.value}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </section>
-              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signals by family chart">
-                <h2 className="text-sm font-semibold text-[#575A66]">Signals by Family</h2>
-                {enriched.length === 0 ? (
+              <section className={cardCls} aria-label="Top signal types chart">
+                <h2 className={cardTitleCls}>Top Signal Types</h2>
+                {topTypes.length === 0 ? (
                   <NoData />
                 ) : (
                   <div className="mt-2 h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={famData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-                        <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
-                        <XAxis dataKey="name" stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
-                        <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
-                        <Bar dataKey="value" name="Signals" radius={[4, 4, 0, 0]}>
-                          {famData.map((d) => (
-                            <Cell key={d.family} fill={d.color} />
+                      <BarChart data={topTypes} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+                        <XAxis type="number" allowDecimals={false} stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 12 }} />
+                        <YAxis type="category" dataKey="type" width={140} stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 11 }} />
+                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F0F1F3' }} />
+                        <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={18}>
+                          {topTypes.map((t) => (
+                            <Cell key={t.type} fill={t.color} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -444,170 +520,147 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 )}
               </section>
             </div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Signal type breakdown chart">
-                <h2 className="text-sm font-semibold text-[#575A66]">Signal Type Breakdown</h2>
-                {typeTotal === 0 ? (
-                  <NoData />
-                ) : (
-                  <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <div className="h-64 w-full sm:w-1/2">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Tooltip contentStyle={tooltipStyle} />
-                          <Pie
-                            data={typeData}
-                            dataKey="count"
-                            nameKey="type"
-                            innerRadius={50}
-                            outerRadius={85}
-                            paddingAngle={2}
-                            stroke="#FFFFFF"
-                          >
-                            {typeData.map((t) => (
-                              <Cell key={t.type} fill={t.color} />
-                            ))}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <ul className="w-full space-y-1.5 sm:w-1/2" aria-label="Signal type legend">
-                      {typeData.map((t) => {
-                        const pct = ((t.count / typeTotal) * 100).toFixed(1)
-                        return (
-                          <li key={t.type} className="flex items-center gap-2 text-xs text-[#575A66]">
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: t.color }} aria-hidden="true" />
-                            <span className="truncate">{t.type}</span>
-                            <span className="ml-auto shrink-0 text-[#8A8D99]">
-                              {t.count} {'\u00b7'} {pct}%
-                            </span>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                )}
-              </section>
-              <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Recent signals">
-                <h2 className="text-sm font-semibold text-[#575A66]">Recent Signals</h2>
-                {enriched.length === 0 ? (
-                  <NoData />
-                ) : (
-                  <div className="mt-3 max-h-80 space-y-3 overflow-y-auto pr-1">
-                    {enriched.slice(0, 8).map((e, i) => (
-                      <SignalRow key={`recent-${e.s.id}-${i}`} e={e} />
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
+            <section className={cardCls} aria-label="Recent signals">
+              <h2 className={cardTitleCls}>Recent Signals</h2>
+              {enriched.length === 0 ? (
+                <NoData />
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {enriched.slice(0, 8).map((e, i) => (
+                    <SignalRow key={`${e.s.id}-${i}`} e={e} />
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
 
         {tab === 'companies' && (
-          <div className="rounded-2xl border border-[#E2E3E5] bg-white">
-            {companyRows.length === 0 ? (
-              <div className="p-12 text-center">
-                <p className="text-3xl" aria-hidden="true">{'\u{1F3E2}'}</p>
-                <p className="mt-3 text-sm font-medium text-[#2C2D33]">No companies tracked yet</p>
-                <p className="mt-1 text-xs text-[#8A8D99]">Import a company list to start tracking signals.</p>
-              </div>
-            ) : (
-              <div className="max-h-[70vh] overflow-auto rounded-2xl">
-                <table className="w-full min-w-[720px] text-sm">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                aria-label="Search companies"
+                placeholder="Search companies or industries"
+                className={inputCls}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <span className="ml-auto text-xs text-[#8A8D99]">
+                {formatNumber(filteredCompanies.length)} of {formatNumber(companyRows.length)} companies
+              </span>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-[#E2E3E5] bg-white">
+              <div className="max-h-[70vh] overflow-auto">
+                <table className="w-full min-w-[960px] text-sm">
                   <thead>
                     <tr>
-                      {['Company', 'Industry', 'HQ', 'Signals', 'Latest'].map((h) => (
+                      {COMPANY_COLUMNS.map((col) => (
                         <th
-                          key={h}
-                          className="sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]"
+                          key={col.label}
+                          className={`sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99] ${
+                            col.align === 'right' ? 'text-right' : 'text-left'
+                          }`}
                         >
-                          {h}
+                          {col.label}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {companyRows.map((row) => {
-                      const expanded = expandedCompany === row.key
-                      return (
-                        <Fragment key={row.key}>
-                          <tr
-                            tabIndex={0}
-                            aria-expanded={expanded}
-                            onClick={() => setExpandedCompany(expanded ? null : row.key)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') setExpandedCompany(expanded ? null : row.key)
-                            }}
-                            className="cursor-pointer border-b border-[#F7F8F9] transition-colors last:border-b-0 hover:bg-[#F7F8F9] focus:bg-[#F7F8F9] focus:outline-none"
-                          >
-                            <td className="px-4 py-3 font-medium text-[#2C2D33]">
-                              <span className="inline-flex items-center gap-2">
-                                <span
-                                  aria-hidden="true"
-                                  className={`inline-block text-[10px] text-[#8A8D99] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
-                                >
-                                  {'\u25B6'}
+                    {filteredCompanies.length === 0 ? (
+                      <tr>
+                        <td colSpan={COMPANY_COLUMNS.length} className="px-4 py-12 text-center text-sm text-[#8A8D99]">
+                          No companies match your search.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCompanies.map((row) => {
+                        const name = (row.company.company_name ?? '').trim() !== '' ? (row.company.company_name ?? '').trim() : '\u2014'
+                        const expanded = expandedCompany === row.key
+                        return (
+                          <Fragment key={row.key}>
+                            <tr
+                              tabIndex={0}
+                              aria-expanded={expanded}
+                              onClick={() => toggleCompany(row.key)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') toggleCompany(row.key)
+                              }}
+                              className="cursor-pointer border-b border-[#F0F1F3] transition-colors last:border-b-0 hover:bg-[#F7F8F9] focus:bg-[#F7F8F9] focus:outline-none"
+                            >
+                              <td className="px-4 py-3 font-medium text-[#2C2D33]">
+                                <span className="inline-flex items-center gap-2">
+                                  <span
+                                    aria-hidden="true"
+                                    className={`inline-block text-[10px] text-[#8A8D99] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+                                  >
+                                    {'\u25B6'}
+                                  </span>
+                                  {name}
                                 </span>
-                                {row.company.company_name}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-[#575A66]">{industryOf(row.company)}</td>
-                            <td className="px-4 py-3 text-[#575A66]">
-                              {(row.company.hq ?? '').trim() !== '' ? row.company.hq : '\u2014'}
-                            </td>
-                            <td className="px-4 py-3 text-[#575A66]">{row.signals.length}</td>
-                            <td className="px-4 py-3 text-[#8A8D99]">
-                              {row.latest ? relativeTime(row.latest.dateIso) : '\u2014'}
-                            </td>
-                          </tr>
-                          {expanded && (
-                            <tr className="border-b border-[#F7F8F9] last:border-b-0">
-                              <td colSpan={5} className="bg-[#F7F8F9] px-6 py-5">
-                                {row.signals.length === 0 ? (
-                                  <p className="text-xs text-[#8A8D99]">No significant signals for this company yet.</p>
-                                ) : (
-                                  <div className="space-y-3">
-                                    {row.signals.map((e, i) => (
-                                      <SignalRow key={`${row.key}-sig-${e.s.id}-${i}`} e={e} />
-                                    ))}
-                                  </div>
-                                )}
+                              </td>
+                              <td className="px-4 py-3 text-[#575A66]">{industryOf(row.company)}</td>
+                              <td className="px-4 py-3 text-right font-medium text-[#2C2D33]">{row.signals.length}</td>
+                              <td className="px-4 py-3 text-right text-[#575A66]">{famCountOf(row, 'funding')}</td>
+                              <td className="px-4 py-3 text-right text-[#575A66]">{famCountOf(row, 'csuite')}</td>
+                              <td className="px-4 py-3 text-right text-[#575A66]">{famCountOf(row, 'product')}</td>
+                              <td className="px-4 py-3 text-right text-[#575A66]">{famCountOf(row, 'partnership')}</td>
+                              <td className="px-4 py-3 text-right text-[#8A8D99]">
+                                {row.latest ? relativeTime(row.latest.dateIso) : '\u2014'}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    void handleDelete(row)
+                                  }}
+                                  disabled={deletingKey !== null}
+                                  aria-label={`Delete ${name}`}
+                                  className="rounded-lg border border-[#F31A1A]/40 px-3 py-1 text-xs font-medium text-[#F31A1A] transition-colors hover:bg-[#F31A1A]/10 disabled:opacity-50"
+                                >
+                                  {deletingKey === row.key ? 'Deleting\u2026' : 'Delete'}
+                                </button>
                               </td>
                             </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })}
+                            {expanded && (
+                              <tr className="border-b border-[#F0F1F3] last:border-b-0">
+                                <td colSpan={COMPANY_COLUMNS.length} className="bg-[#F7F8F9] px-6 py-4">
+                                  {row.signals.length === 0 ? (
+                                    <p className="text-xs text-[#8A8D99]">No significant signals stored for this company yet.</p>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {row.signals.map((e, i) => (
+                                        <SignalRow key={`${e.s.id}-${i}`} e={e} />
+                                      ))}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
-            )}
+            </div>
           </div>
         )}
 
         {tab === 'signals' && (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4">
+            <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4">
               <input
-                type="search"
+                type="text"
+                aria-label="Search signals"
+                placeholder="Search signals"
+                className={inputCls}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search signals\u2026"
-                aria-label="Search signals"
-                className={inputCls}
               />
-              <select
-                aria-label="Filter by severity"
-                className={inputCls}
-                value={severityFilter}
-                onChange={(e) => setSeverityFilter(e.target.value as 'all' | NormalizedSeverity)}
-              >
-                <option value="all">All severities</option>
-                {SEVERITIES.map((sv) => (
-                  <option key={sv} value={sv}>{sv}</option>
-                ))}
-              </select>
               <select
                 aria-label="Filter by family"
                 className={inputCls}
@@ -616,30 +669,45 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
               >
                 <option value="all">All families</option>
                 {FAMILIES.map((f) => (
-                  <option key={f} value={f}>{FAMILY_META[f].label}</option>
+                  <option key={f} value={f}>
+                    {FAMILY_META[f].label}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Filter by severity"
+                className={inputCls}
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value as 'all' | NormalizedSeverity)}
+              >
+                <option value="all">All severities</option>
+                {SEVERITIES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
                 ))}
               </select>
               <button
                 type="button"
                 onClick={clearFilters}
-                className="rounded-xl border border-[#E2E3E5] bg-white px-3 py-2 text-sm text-[#575A66] transition-colors hover:bg-[#F7F8F9]"
+                className="rounded-xl border border-[#E2E3E5] px-3 py-2 text-sm text-[#575A66] transition-colors hover:bg-[#F7F8F9]"
               >
                 Clear
               </button>
               <span className="ml-auto text-xs text-[#8A8D99]">
-                {filtered.length} of {enriched.length} signal{enriched.length === 1 ? '' : 's'}
+                {filtered.length} of {totalSignals} signal{totalSignals === 1 ? '' : 's'}
               </span>
             </div>
             {filtered.length === 0 ? (
               <div className="rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center">
                 <p className="text-3xl" aria-hidden="true">{'\u{1F50D}'}</p>
                 <p className="mt-3 text-sm font-medium text-[#2C2D33]">No signals match your filters</p>
-                <p className="mt-1 text-xs text-[#8A8D99]">Try clearing the search or widening the filters.</p>
+                <p className="mt-1 text-xs text-[#8A8D99]">Try clearing the search or filters.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
                 {filtered.map((e, i) => (
-                  <SignalRow key={`sig-${e.s.id}-${i}`} e={e} />
+                  <SignalRow key={`${e.s.id}-${i}`} e={e} />
                 ))}
               </div>
             )}
@@ -648,8 +716,8 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
 
         {tab === 'trends' && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Weekly trend chart">
-              <h2 className="text-sm font-semibold text-[#575A66]">Weekly Signal Trend (8 Weeks)</h2>
+            <section className={cardCls} aria-label="Weekly signal trend chart">
+              <h2 className={cardTitleCls}>Weekly Signal Trend (8 Weeks)</h2>
               {enriched.length === 0 ? (
                 <NoData />
               ) : (
@@ -657,43 +725,87 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={weeklyData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
                       <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
-                      <XAxis dataKey="label" stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
-                      <YAxis allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
-                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
-                      <Bar dataKey="count" name="Signals" fill="#3BC884" radius={[4, 4, 0, 0]} />
+                      <XAxis dataKey="label" stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <YAxis allowDecimals={false} stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F0F1F3' }} />
+                      <Bar dataKey="count" name="Signals" fill="#1A73E8" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </section>
-            <section className="rounded-2xl border border-[#E2E3E5] bg-white p-5" aria-label="Top companies chart">
-              <h2 className="text-sm font-semibold text-[#575A66]">Top 10 Companies by Signal Count</h2>
-              {companyRows.filter((r) => r.signals.length > 0).length === 0 ? (
+            <section className={cardCls} aria-label="Signals by category chart">
+              <h2 className={cardTitleCls}>Signals by Category</h2>
+              {enriched.length === 0 ? (
+                <NoData />
+              ) : (
+                <div className="mt-2 h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={famData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                      <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" />
+                      <XAxis dataKey="name" stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <YAxis allowDecimals={false} stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F0F1F3' }} />
+                      <Bar dataKey="value" name="Signals" radius={[4, 4, 0, 0]}>
+                        {famData.map((d) => (
+                          <Cell key={d.name} fill={d.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </section>
+            <section className={cardCls} aria-label="Top companies chart">
+              <h2 className={cardTitleCls}>Top 10 Companies by Signal Count</h2>
+              {topCompaniesData.length === 0 ? (
                 <NoData />
               ) : (
                 <div className="mt-2 h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={companyRows
-                        .filter((r) => r.signals.length > 0)
-                        .slice(0, 10)
-                        .map((r) => ({ company: r.company.company_name, count: r.signals.length }))}
-                      layout="vertical"
-                      margin={{ top: 10, right: 24, bottom: 0, left: 8 }}
-                    >
+                    <BarChart data={topCompaniesData} layout="vertical" margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
                       <CartesianGrid stroke="#E2E3E5" strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" allowDecimals={false} stroke="#A7AAB2" tick={{ fill: '#575A66', fontSize: 12 }} />
-                      <YAxis
-                        type="category"
-                        dataKey="company"
-                        width={140}
-                        stroke="#A7AAB2"
-                        tick={{ fill: '#575A66', fontSize: 11 }}
-                      />
-                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
+                      <XAxis type="number" allowDecimals={false} stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <YAxis type="category" dataKey="company" width={140} stroke="#8A8D99" tick={{ fill: '#575A66', fontSize: 11 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F0F1F3' }} />
                       <Bar dataKey="count" name="Signals" fill="#00A7D6" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              )}
+            </section>
+            <section className={cardCls} aria-label="Signal type breakdown">
+              <h2 className={cardTitleCls}>Signal Type Breakdown</h2>
+              {typeTotal === 0 ? (
+                <NoData />
+              ) : (
+                <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="h-64 w-full sm:w-1/2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Pie data={typeData} dataKey="count" nameKey="type" innerRadius={50} outerRadius={85} paddingAngle={2} stroke="#FFFFFF">
+                          {typeData.map((t) => (
+                            <Cell key={t.type} fill={t.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="w-full space-y-1.5 sm:w-1/2" aria-label="Signal type legend">
+                    {typeData.map((t) => {
+                      const pct = ((t.count / typeTotal) * 100).toFixed(1)
+                      return (
+                        <li key={t.type} className="flex items-center gap-2 text-xs text-[#575A66]">
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: t.color }} aria-hidden="true" />
+                          <span className="truncate">{t.type}</span>
+                          <span className="ml-auto shrink-0 text-[#8A8D99]">
+                            {t.count} {'\u00b7'} {pct}%
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
               )}
             </section>
@@ -713,11 +825,11 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
             ) : (
               <>
                 <p className="text-xs text-[#8A8D99]">
-                  {insights.length} high-severity insight{insights.length === 1 ? '' : 's'} across your tracked accounts.
+                  {insights.length} high-severity insight{insights.length === 1 ? '' : 's'}
                 </p>
                 <div className="space-y-3">
                   {insights.map((e, i) => (
-                    <SignalRow key={`insight-${e.s.id}-${i}`} e={e} />
+                    <SignalRow key={`${e.s.id}-${i}`} e={e} />
                   ))}
                 </div>
               </>

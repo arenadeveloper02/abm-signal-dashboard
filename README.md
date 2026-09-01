@@ -1,14 +1,13 @@
 # abm-signal-dashboard
 
-Deployment-only run: no functional changes. The existing codebase is built and deployed exactly as-is; prisma/schema.prisma is echoed verbatim (unchanged, add-only policy respected, no columns dropped or altered).
+ABM signal tracker dashboard — removed the Arena emailId access gate, restored the full Companies tab with Delete actions and previous tab design, and removed the duplicate middle Refresh Dashboard control.
 
 ## Features
 
-- Responsive UI with Tailwind CSS
-- Next.js App Router pages and components
-- ABM account signal tracking across funding, C-suite, product and partnership activity
-- Prisma + Neon Postgres persistence (AppSetting)
-- Arena email gating via middleware and ArenaEmailProvider
+- Loads without ?emailId= query param or arena_email_id cookie (gate removed)
+- Companies tab with Company, Industry, family counts, Last Activity and working Delete action
+- Restored Overview KPI cards, charts, Signals filters, Trends and Insights tabs
+- Single header refresh control — duplicate middle refresh bar removed
 
 ## Tech Stack
 

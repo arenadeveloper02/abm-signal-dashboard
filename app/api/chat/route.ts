@@ -54,9 +54,10 @@ function extractReply(raw: unknown): string {
 
 export async function POST(request: Request) {
   const apiKey = getApiKey()
+
   if (apiKey === '') {
     return NextResponse.json(
-      { error: 'The chat assistant is not configured. Add OPENAI_API_KEY to the server environment.' },
+      { error: 'OPENAI_API_KEY is not configured on the server.' },
       { status: 500 }
     )
   }
@@ -75,19 +76,16 @@ export async function POST(request: Request) {
   const context = parseContext(body.context)
 
   if (messages.length === 0) {
-    return NextResponse.json({ error: 'No message provided.' }, { status: 400 })
+    return NextResponse.json({ error: 'No messages provided.' }, { status: 400 })
   }
 
-  const systemPrompt = [
-    'You are the Signal Assistant for an ABM (account-based marketing) signal dashboard.',
-    'Answer questions about the tracked companies and their signals using ONLY the JSON data provided below.',
-    'Signals belong to four families: funding, csuite, product and partnership.',
-    'Be concise and factual. When listing companies or signals, use short bullet points.',
-    'If the data does not contain the answer, say so plainly instead of guessing.',
-    '',
-    'SIGNAL DATA (JSON):',
-    context === '' ? '(no data was loaded — tell the user that data is unavailable right now)' : context,
-  ].join('\n')
+  const systemPrompt =
+    'You are Signal Assistant, a helpful analyst for an ABM (account-based marketing) signal tracking dashboard. ' +
+    'Answer questions about the tracked companies and their signals (funding, C-suite changes, product launches, partnerships) ' +
+    'using ONLY the dashboard data provided below when it is available. Be concise and specific: cite company names, ' +
+    'signal types, confidence levels and dates from the data. If the data does not contain the answer, say so plainly. ' +
+    'Do not invent companies or signals.' +
+    (context !== '' ? `\n\nDashboard data (JSON):\n${context}` : '\n\nNo dashboard data is currently available.')
 
   try {
     const upstream = await fetch(OPENAI_URL, {
@@ -112,22 +110,27 @@ export async function POST(request: Request) {
     }
 
     if (!upstream.ok) {
+      let detail = ''
+      if (isRecord(raw) && isRecord(raw.error) && typeof raw.error.message === 'string') {
+        detail = ` \u2014 ${raw.error.message.slice(0, 200)}`
+      }
       return NextResponse.json(
-        { error: `Chat API responded with status ${upstream.status}. Please try again.` },
+        { error: `Chat API responded with status ${upstream.status}${detail}` },
         { status: 502 }
       )
     }
 
     const reply = extractReply(raw)
     if (reply === '') {
-      return NextResponse.json(
-        { error: 'The chat model returned an empty reply. Please try again.' },
-        { status: 502 }
-      )
+      return NextResponse.json({ error: 'Chat API returned an empty reply.' }, { status: 502 })
     }
 
     return NextResponse.json({ reply })
-  } catch {
-    return NextResponse.json({ error: 'Could not reach the chat API. Please try again.' }, { status: 502 })
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : 'Unknown network error'
+    return NextResponse.json(
+      { error: `Could not reach the chat API: ${detail}` },
+      { status: 502 }
+    )
   }
 }
