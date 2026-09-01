@@ -417,7 +417,6 @@ function ChartCard({ title, children, className }: { title: string; children: Re
 export default function StoredSignalsDashboard({ result, onRefresh }: StoredSignalsDashboardProps) {
   const email = useArenaEmailId()
   const [tab, setTab] = useState<TabKey>('overview')
-  const [refreshing, setRefreshing] = useState(false)
   const [severityFilter, setSeverityFilter] = useState<'all' | NormalizedSeverity>('all')
   const [familyFilter, setFamilyFilter] = useState<'all' | Family>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -655,16 +654,6 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
     return '\u2014'
   }
 
-  const handleRefresh = async () => {
-    if (!onRefresh || refreshing) return
-    setRefreshing(true)
-    try {
-      await onRefresh()
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
   const handleCardClick = (label: string) => {
     const mapped = CARD_TYPE_FILTER[label]
     setTypeFilter(mapped ?? 'all')
@@ -709,27 +698,6 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
 
   return (
     <div>
-      <div className='border-b border-[#E2E3E5] bg-white'>
-        <div className='mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-4'>
-          <div>
-            <h2 className='text-lg font-semibold text-[#2C2D33]'>Signal Intelligence</h2>
-            <p className='text-xs text-[#8A8D99]'>
-              {formatNumber(totalCompanies)} companies tracked {'\u00b7'}{' '}
-              {formatNumber(dash.total_signals ?? enriched.length)} significant signals
-            </p>
-          </div>
-          {onRefresh && (
-            <button
-              type='button'
-              onClick={() => void handleRefresh()}
-              disabled={refreshing}
-              className='ml-auto rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60'
-            >
-              {refreshing ? 'Refreshing\u2026' : 'Refresh Dashboard'}
-            </button>
-          )}
-        </div>
-      </div>
       <TabBar active={tab} onChange={setTab} />
       <div className='mx-auto max-w-7xl px-4 py-6'>
         {tab === 'overview' && (
