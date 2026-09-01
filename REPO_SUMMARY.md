@@ -1,19 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-09-01T07:03:48.679Z.
+> Auto-maintained by Sim Development. Last updated: 2026-09-01T08:27:55.818Z.
 
 ## Overview
 
-Fixed the failing build: completed the truncated app/api/delete-company/route.ts POST handler (TS1127/TS1005) and rebuilt the broken JSX tail of components/StoredSignalsDashboard.tsx (TS17008/TS1005), implementing the requested change so the Overview 'Total Companies' card navigates to the Companies tab instead of the Signals tab. prisma/schema.prisma echoed unchanged.
+ABM Signal Tracker dashboard. Fixed build: rewrote the truncated/corrupted app/api/chat/route.ts (TS1127/TS1109/TS1005 at line 28) with a complete OpenAI proxy implementation, and rewrote components/StoredSignalsDashboard.tsx which was cut off mid-JSX (TS17008 unclosed div/header tags at lines 693-703 and TS1002 unterminated string at line 707) — the rebuilt component contains the full Overview/Companies/Signals/Trends/Insights dashboard UI and no longer renders the duplicate 'ABM Signal Tracker' heading in the page body (the top app header is untouched). prisma/schema.prisma is echoed byte-for-byte unchanged per the standing rule.
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 49
+**File count:** 50
 
 ## Features
 
-- Overview 'Total Companies' card now navigates to the Companies tab
-- Complete delete-company API proxy route
-- Stored signals dashboard with Overview, Companies, Signals, Trends and Insights tabs
+- Upload CSV/XLSX company lists and run background ABM signal analysis
+- Stored-signals dashboard with KPI cards, weekly trend, severity mix, and type breakdown charts
+- Company table with expandable company info and signal history
+- Filterable signal feed by severity, family, type, and week
+- High-severity insights view
+- Signal data chat assistant
 
 ## Tech Stack
 
@@ -70,6 +73,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
+- `app/api/chat/route.ts`
 - `app/api/delete-company/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
@@ -132,6 +136,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `app/access-denied/page.tsx`
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
+- `app/api/chat/route.ts`
 - `app/api/delete-company/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
@@ -178,17 +183,18 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-09-01T07:03:48.679Z
+- **Updated at:** 2026-09-01T08:27:55.818Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-1. Overview tab — fix the navigation target of the "Total Companies" card.
-   - In the Overview tab there is a stat card/block labelled "Total Companies". Clicking it currently navigates to the Signals tab.
-   - Change it so clicking it navigates to the Companies tab instead.
-   - This is a one-line change to the tab target of that card's existing click handler only. Do not change the card's label, value, icon, styling, layout, position, or the click handler's structure. Do not touch any other stat card on the Overview tab — their navigation targets must stay exactly as they are. Do not change the tab switching mechanism, the TabBar, or any tab component.
+1. Remove the duplicate "ABM Signal Tracker" heading from the page body.
+   - The "ABM Signal Tracker" title currently appears TWICE on the page: once in the header at the very top of the app, and again lower down in the middle of the page content.
+   - Remove ONLY the second, lower one (the duplicate rendered inside the page body / dashboard content area). The heading in the top header must remain exactly as it is — do not touch it, its text, styling, or position.
+   - Remove only that duplicate heading element (and, if it has a subtitle/description line that is also duplicated from the top header, that line too). Do not remove or alter any surrounding container, card, tab bar, filter, stat block, chart, or any other content near it.
+   - Do not change spacing, padding, margins, layout, or styling of the remaining elements beyond what is unavoidable from deleting that element. Do not restructure the component.
 
 Only touch the files/functions directly related to the points above.
 Do not change variable names, code style, or structure outside the scope of these changes.

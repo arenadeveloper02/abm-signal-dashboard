@@ -13,14 +13,6 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // API routes use email from the JSON body (or cookie fallback inside the handler).
-  // Do not rewrite them to the access-denied HTML page.
-  if (pathname.startsWith('/api/')) {
-    const response = NextResponse.next()
-    response.headers.set('Content-Security-Policy', frameHeaders['Content-Security-Policy'])
-    return response
-  }
-
   const fromQuery = request.nextUrl.searchParams.get('emailId')?.trim() ?? ''
   const fromCookie = request.cookies.get(ARENA_EMAIL_COOKIE_NAME)?.value?.trim() ?? ''
   const emailId = fromQuery || fromCookie
