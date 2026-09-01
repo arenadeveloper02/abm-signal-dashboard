@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveRequestEmail } from '@/lib/resolve-request-email'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -71,12 +72,18 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: unknown = {}
+  let body: Record<string, unknown> = {}
   try {
-    body = await request.json()
+    const parsed: unknown = await request.json()
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      body = parsed as Record<string, unknown>
+    }
   } catch {
     body = {}
   }
+
+  const email = await resolveRequestEmail(body)
+  if (email !== '') body.email = email
 
   try {
     const upstream = await fetch(apiUrl, {

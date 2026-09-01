@@ -6,6 +6,7 @@ import type { AnalyzeResult, ParsedCompany, StoredSignalsResult } from '@/lib/ty
 import { fetchAllStoredSignals } from '@/lib/fetch-all-stored-signals'
 import StoredSignalsDashboard from '@/components/StoredSignalsDashboard'
 import { DashboardSkeleton } from '@/components/Skeletons'
+import { useArenaEmailId } from '@/components/arena-email-provider'
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, '')
@@ -103,6 +104,7 @@ const primaryBtnCls =
   'rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60'
 
 export default function AccountSignalTrackerClient() {
+  const email = useArenaEmailId()
   const [view, setView] = useState<ViewMode>('dashboard')
   const [storedResult, setStoredResult] = useState<StoredSignalsResult | null>(null)
   const [storedError, setStoredError] = useState<string | null>(null)
@@ -121,7 +123,7 @@ export default function AccountSignalTrackerClient() {
     setLoadingStored(true)
     setStoredError(null)
     try {
-      const result = await fetchAllStoredSignals()
+      const result = await fetchAllStoredSignals(email)
       setStoredResult(result)
     } catch (err) {
       const missing =
@@ -146,7 +148,7 @@ export default function AccountSignalTrackerClient() {
     } finally {
       setLoadingStored(false)
     }
-  }, [])
+  }, [email])
 
   useEffect(() => {
     void fetchAllStored()
@@ -287,6 +289,7 @@ export default function AccountSignalTrackerClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          email,
           companies: companiesPayload,
           fileName: analyzeFileName,
           signalTypes: 'funding,csuite,product,partnership',
@@ -417,7 +420,7 @@ export default function AccountSignalTrackerClient() {
               </button>
             </div>
           ) : storedResult ? (
-            <StoredSignalsDashboard result={storedResult} />
+            <StoredSignalsDashboard result={storedResult} onRefresh={fetchAllStored} />
           ) : null
         ) : (
           <div className="grid gap-6">

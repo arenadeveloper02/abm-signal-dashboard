@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { StoredSignal, StoredSignalsResult } from '@/lib/types'
 import { fetchAllStoredSignals } from '@/lib/fetch-all-stored-signals'
+import { useOptionalArenaEmailId } from '@/components/arena-email-provider'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -129,6 +130,7 @@ function CloseIcon() {
 }
 
 export default function ChatWidget() {
+  const email = useOptionalArenaEmailId()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [historyReady, setHistoryReady] = useState(false)
@@ -163,7 +165,7 @@ export default function ChatWidget() {
       setLoadingData(true)
       setDataError(null)
       try {
-        const result = await fetchAllStoredSignals()
+        const result = await fetchAllStoredSignals(email ?? undefined)
         const ctx = buildContext(result)
         contextRef.current = ctx
         return ctx
@@ -178,7 +180,7 @@ export default function ChatWidget() {
     })()
     loadPromiseRef.current = promise
     return promise
-  }, [])
+  }, [email])
 
   const handleToggle = () => {
     const next = !open

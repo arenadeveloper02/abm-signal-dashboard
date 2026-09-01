@@ -15,6 +15,7 @@ import type {
 } from '@/lib/types'
 import TabBar from '@/components/TabBar'
 import KpiCard from '@/components/KpiCard'
+import { useArenaEmailId } from '@/components/arena-email-provider'
 import {
   FAMILIES,
   FAMILY_META,
@@ -414,6 +415,7 @@ function ChartCard({ title, children, className }: { title: string; children: Re
 }
 
 export default function StoredSignalsDashboard({ result, onRefresh }: StoredSignalsDashboardProps) {
+  const email = useArenaEmailId()
   const [tab, setTab] = useState<TabKey>('overview')
   const [refreshing, setRefreshing] = useState(false)
   const [severityFilter, setSeverityFilter] = useState<'all' | NormalizedSeverity>('all')
@@ -682,7 +684,12 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       const res = await fetch('/api/delete-company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ company: name, companyId: row.company.company_id }),
+        body: JSON.stringify({
+          email,
+          company: name,
+          companyId: row.company.company_id,
+          confirm: true,
+        }),
       })
       if (res.ok && onRefresh) await onRefresh()
     } catch {

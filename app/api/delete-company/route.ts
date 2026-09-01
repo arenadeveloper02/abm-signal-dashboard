@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveRequestEmail } from '@/lib/resolve-request-email'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -67,9 +68,11 @@ export async function POST(request: Request) {
 
   const signalsOnly = body.signalsOnly === true
   const confirm = body.confirm !== false
+  const email = await resolveRequestEmail(body)
 
   const upstreamBody = {
     input: {
+      ...(email !== '' ? { email } : {}),
       company,
       companyId,
       confirm,

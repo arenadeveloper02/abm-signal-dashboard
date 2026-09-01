@@ -90,16 +90,22 @@ export function normalizeStoredPayload(
  * Fetches all stored companies (always complete from API) and pages through
  * signals until the significant-signal total is covered (server hard-caps limit at 5000).
  */
-export async function fetchAllStoredSignals(): Promise<StoredSignalsResult> {
+export async function fetchAllStoredSignals(email?: string): Promise<StoredSignalsResult> {
   const allSignals: StoredSignal[] = []
   let first: StoredPayload | null = null
   let offset = 0
+  const trimmedEmail = typeof email === 'string' ? email.trim() : ''
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const res = await fetch('/api/all-stored-signals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ limit: PAGE_LIMIT, offset, includeSignals: true }),
+      body: JSON.stringify({
+        limit: PAGE_LIMIT,
+        offset,
+        includeSignals: true,
+        ...(trimmedEmail !== '' ? { email: trimmedEmail } : {}),
+      }),
     })
 
     let json: StoredPayload = {}
