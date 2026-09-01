@@ -1,13 +1,13 @@
 # abm-signal-dashboard
 
-Fixed Overview tab navigation: clicking the companies KPI card ('Companies with Signals' / Total Companies) now opens the Companies tab instead of the Signals tab. Files changed: components/OverviewTab.tsx (added optional target to the KPI card definition and onSelectKpi call for the companies card only), components/DashboardClient.tsx (handleSelectKpi accepts an optional target tab defaulting to 'signals' so all other cards keep their existing behavior). prisma/schema.prisma echoed verbatim — untouched per standing rule.
+Removed the duplicate 'ABM Signal Tracker' heading (and its duplicated subtitle line) from the page body inside components/AccountSignalTrackerClient.tsx. The top sticky header title remains unchanged. prisma/schema.prisma is echoed verbatim with no modifications. Files changed: components/AccountSignalTrackerClient.tsx (removed the second in-body heading block only; all logic, state, handlers, import flow, and dashboard rendering preserved), prisma/schema.prisma (unchanged echo, required on every database-backed edit).
 
 ## Features
 
 - Responsive UI with Tailwind CSS
 - Next.js App Router pages and components
-- ABM signal tracking dashboard with KPI cards, charts, and filterable feed
-- Companies KPI card navigates to the Companies tab
+- CSV/XLSX company import with background signal analysis
+- Stored signals dashboard with KPIs, charts and company details
 
 ## Tech Stack
 

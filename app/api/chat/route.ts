@@ -28,58 +28,45 @@ function parseMessages(raw: unknown): IncomingMessage[] {
     const role = item.role
     const content = item.content
     if ((role === 'user' || role === 'assistant') && typeof content === 'string' && content.trim() !== '') {
-      out.push({ role, content: content.slice(0, 8000) })
+      out.push({ role, content })
     }
   }
   return out.slice(-MAX_HISTORY)
 }
 
-function extractReply(raw: unknown): string | null {
-  if (!isRecord(raw)) return null
-  const choices = raw.choices
-  if (!Array.isArray(choices) || choices.length === 0) return null
-  const first = choices[0]
-  if (!isRecord(first)) return null
-  const message = first.message
-  if (!isRecord(message)) return null
-  const content = message.content
-  return typeof content === 'string' && content.trim() !== '' ? content : null
-}
-
-const SYSTEM_PROMPT =
-  'You are an assistant for the ABM Signal Tracker dashboard. Answer questions ONLY using the provided signal data context (companies, signals, signal families, alerts, categories, and totals) and the conversation history. Use earlier messages in this chat to resolve follow-ups (e.g. "those companies", "what about funding", "and the high alerts?"). If the answer is not present in the data, clearly say the data does not contain that information. Be concise and factual. Do not invent companies, numbers, dates, or signals that are not in the context.'
-
 export async function POST(request: Request) {
-  let body: unknown = {}
+  const apiKey = getApiKey()
+  if (apiKey === '') {
+    return NextResponse.json(
+      { error: 'Chat is not configured. Add OPENAI_API_KEY to the server environment.' },
+      { status: 500 }
+    )
+  }
+
+  let body: Record<string, unknown> = {}
   try {
-    body = await request.json()
+    const parsed: unknown = await request.json()
+    if (isRecord(parsed)) body = parsed
   } catch {
     body = {}
   }
 
-  const messages = isRecord(body) ? parseMessages(body.messages) : []
-  let context = isRecord(body) && typeof body.context === 'string' ? body.context : ''
+  const messages = parseMessages(body.messages)
+  if (messages.length === 0) {
+    return NextResponse.json({ error: 'No messages provided' }, { status: 400 })
+  }
+
+  let context = typeof body.context === 'string' ? body.context : ''
   if (context.length > MAX_CONTEXT_CHARS) {
     context = context.slice(0, MAX_CONTEXT_CHARS)
   }
 
-  if (messages.length === 0) {
-    return NextResponse.json({ reply: 'Please ask a question about your signal data.' })
-  }
-
-  const apiKey = getApiKey()
-  if (!apiKey || apiKey.length === 0) {
-    return NextResponse.json({
-      reply: 'Chat is not configured (missing API key). Add OPENAI_API_KEY to the environment to enable the assistant.',
-    })
-  }
-
-  const model = process.env.OPENAI_MODEL && process.env.OPENAI_MODEL.length > 0 ? process.env.OPENAI_MODEL : 'gpt-4o-mini'
-
-  const systemContent =
-    context.length > 0
-      ? `${SYSTEM_PROMPT}\n\nSIGNAL DATA CONTEXT (JSON):\n${context}`
-      : `${SYSTEM_PROMPT}\n\nNOTE: No signal data context was provided for this request. Tell the user the data could not be loaded and suggest they retry.`
+  const system = [
+    'You are Signal Assistant, a concise analyst for an ABM (account-based marketing) signal tracking dashboard.',
+    'Answer questions using ONLY the JSON data provided below. Be specific: name companies, counts, signal types, severities, and dates when relevant.',
+    'If the data does not contain the answer, say so clearly instead of guessing.',
+    context !== '' ? `DATA (JSON):\n${context}` : 'DATA: no signal data is available right now.',
+  ].join('\n\n')
 
   try {
     const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -89,17 +76,18 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model,
+        model: 'gpt-4o-mini',
         temperature: 0.2,
-        messages: [{ role: 'system', content: systemContent }, ...messages],
+        messages: [{ role: 'system', content: system }, ...messages],
       }),
       cache: 'no-store',
     })
 
     if (!upstream.ok) {
-      return NextResponse.json({
-        reply: `The chat service returned an error (status ${upstream.status}). Please try again shortly.`,
-      })
+      return NextResponse.json(
+        { error: `Chat provider responded with status ${upstream.status}` },
+        { status: 502 }
+      )
     }
 
     let raw: unknown = null
@@ -109,17 +97,30 @@ export async function POST(request: Request) {
       raw = null
     }
 
-    const reply = extractReply(raw)
-    if (reply === null) {
-      return NextResponse.json({
-        reply: 'Sorry, I could not generate an answer right now. Please try again.',
-      })
+    let reply = ''
+    if (isRecord(raw)) {
+      const choices = raw.choices
+      if (Array.isArray(choices) && choices.length > 0) {
+        const first: unknown = choices[0]
+        if (isRecord(first)) {
+          const message = first.message
+          if (isRecord(message)) {
+            const content = message.content
+            if (typeof content === 'string') reply = content.trim()
+          }
+        }
+      }
+    }
+
+    if (reply === '') {
+      return NextResponse.json(
+        { error: 'Chat provider returned an empty response' },
+        { status: 502 }
+      )
     }
 
     return NextResponse.json({ reply })
   } catch {
-    return NextResponse.json({
-      reply: 'Could not reach the chat service. Please check your connection and try again.',
-    })
+    return NextResponse.json({ error: 'Failed to reach the chat provider' }, { status: 502 })
   }
 }
