@@ -175,6 +175,10 @@ export interface StoredCompany {
   first_seen_at?: string
   last_analysed_at?: string
   has_signals?: boolean
+  tech_stack?: string[] | string
+  technologies?: string[] | string
+  keywords?: string[] | string
+  tags?: string[] | string
 }
 
 export interface StoredSignalsTotals {

@@ -1,13 +1,16 @@
 # abm-signal-dashboard
 
-ABM signal tracker dashboard — removed the Arena emailId access gate, restored the full Companies tab with Delete actions and previous tab design, and removed the duplicate middle Refresh Dashboard control.
+ABM Signal Tracker dashboard — surgical edit: removed the middleware emailId gate (dashboard loads without ?emailId while keeping frame-ancestors CSP and optional cookie persistence), made useArenaEmailId return '' instead of throwing, restored the Company info section (description, facts, tech/keyword chips) on expanded company rows while keeping the Delete action, and ensured only the top header Refresh bar remains. prisma/schema.prisma is returned verbatim and untouched.
 
 ## Features
 
-- Loads without ?emailId= query param or arena_email_id cookie (gate removed)
-- Companies tab with Company, Industry, family counts, Last Activity and working Delete action
-- Restored Overview KPI cards, charts, Signals filters, Trends and Insights tabs
-- Single header refresh control — duplicate middle refresh bar removed
+- Dashboard loads at / without emailId query or cookie (no access-denied rewrite)
+- Companies table with Company, Industry, Total, Funding, C-Suite, Product, Partnership, Last Activity, Actions columns
+- Delete button per company posting to /api/delete-company
+- Restored Company info section on row expand: short description, Domain/Industry/Website/LinkedIn/Employees/Location facts, tech stack and keyword chips
+- Expandable recent signals under each company row
+- Single Refresh Dashboard control (top header only, from AccountSignalTrackerClient)
+- Overview KPIs and recharts visualizations (family pie, weekly volume, top companies, top types)
 
 ## Tech Stack
 
