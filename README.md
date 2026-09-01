@@ -1,13 +1,12 @@
 # abm-signal-dashboard
 
-Removed the duplicate 'ABM Signal Tracker' heading (and its duplicated subtitle line) from the page body inside components/AccountSignalTrackerClient.tsx. The top sticky header title remains unchanged. prisma/schema.prisma is echoed verbatim with no modifications. Files changed: components/AccountSignalTrackerClient.tsx (removed the second in-body heading block only; all logic, state, handlers, import flow, and dashboard rendering preserved), prisma/schema.prisma (unchanged echo, required on every database-backed edit).
+Removed the duplicated in-body dashboard header (title, 'companies tracked · significant signals' subtitle, and duplicate Refresh Dashboard button) from the stored-signals dashboard card above the tab bar. The top header bar and all tabs, cards, charts and filters are preserved. prisma/schema.prisma is returned verbatim and unchanged (add-only policy; no columns touched).
 
 ## Features
 
 - Responsive UI with Tailwind CSS
 - Next.js App Router pages and components
-- CSV/XLSX company import with background signal analysis
-- Stored signals dashboard with KPIs, charts and company details
+- ABM stored-signals dashboard with Overview / Companies / Signals / Trends / Insights tabs
 
 ## Tech Stack
 

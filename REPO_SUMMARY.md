@@ -1,22 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-09-01T08:27:55.818Z.
+> Auto-maintained by Sim Development. Last updated: 2026-09-01T09:50:12.763Z.
 
 ## Overview
 
-ABM Signal Tracker dashboard. Fixed build: rewrote the truncated/corrupted app/api/chat/route.ts (TS1127/TS1109/TS1005 at line 28) with a complete OpenAI proxy implementation, and rewrote components/StoredSignalsDashboard.tsx which was cut off mid-JSX (TS17008 unclosed div/header tags at lines 693-703 and TS1002 unterminated string at line 707) — the rebuilt component contains the full Overview/Companies/Signals/Trends/Insights dashboard UI and no longer renders the duplicate 'ABM Signal Tracker' heading in the page body (the top app header is untouched). prisma/schema.prisma is echoed byte-for-byte unchanged per the standing rule.
+ABM Signal Tracker: upload a company list (CSV or XLSX) and track account signals across funding, C-suite, product and partnership activity, with a chat assistant grounded in stored signal data.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 50
 
 ## Features
 
-- Upload CSV/XLSX company lists and run background ABM signal analysis
-- Stored-signals dashboard with KPI cards, weekly trend, severity mix, and type breakdown charts
-- Company table with expandable company info and signal history
-- Filterable signal feed by severity, family, type, and week
-- High-severity insights view
-- Signal data chat assistant
+- Import companies via CSV/XLSX upload or manual entry
+- Signal dashboard with Overview, Companies, Signals, Trends and Insights tabs
+- KPI cards, charts and filters over stored ABM signals
+- Background analysis via upstream workflow APIs
+- Chat assistant answering questions about tracked companies and signals
+- Arena email-gated iframe access with access-denied page
 
 ## Tech Stack
 
@@ -183,18 +183,21 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-09-01T08:27:55.818Z
+- **Updated at:** 2026-09-01T09:50:12.763Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-1. Remove the duplicate "ABM Signal Tracker" heading from the page body.
-   - The "ABM Signal Tracker" title currently appears TWICE on the page: once in the header at the very top of the app, and again lower down in the middle of the page content.
-   - Remove ONLY the second, lower one (the duplicate rendered inside the page body / dashboard content area). The heading in the top header must remain exactly as it is — do not touch it, its text, styling, or position.
-   - Remove only that duplicate heading element (and, if it has a subtitle/description line that is also duplicated from the top header, that line too). Do not remove or alter any surrounding container, card, tab bar, filter, stat block, chart, or any other content near it.
-   - Do not change spacing, padding, margins, layout, or styling of the remaining elements beyond what is unavoidable from deleting that element. Do not restructure the component.
+1. Remove the duplicated header content from the dashboard body, above the tab bar.
+   - The app has a top header bar containing the "ABM Signal Tracker" title, a "Refresh Dashboard" button and an "Import Companies" button. That top header bar must remain EXACTLY as it is — do not touch it.
+   - Directly below it, inside the dashboard content card above the tab bar (Overview / Companies / Signals / Trends / Insights), the same content is duplicated. Remove these three elements from that in-body row:
+     
+     b) the subtitle line reading "11 companies tracked · 34 significant signals" (the companies-tracked / significant-signals summary text)
+     c) the duplicate "Refresh Dashboard" button in that row
+
+   -DO NOT REMOVE OR ALTER NAY OTHER  the tab bar, any tab, any stat card, chart, filter, or any other content. Do not change spacing, padding, margins or styling of the remaining elements beyond what is unavoidable from deleting those three elements. Do not restructure the component.
 
 Only touch the files/functions directly related to the points above.
 Do not change variable names, code style, or structure outside the scope of these changes.
