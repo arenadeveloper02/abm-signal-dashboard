@@ -1,12 +1,13 @@
 # abm-signal-dashboard
 
-Removed the duplicated in-body dashboard header (title, 'companies tracked · significant signals' subtitle, and duplicate Refresh Dashboard button) from the stored-signals dashboard card above the tab bar. The top header bar and all tabs, cards, charts and filters are preserved. prisma/schema.prisma is returned verbatim and unchanged (add-only policy; no columns touched).
+Deployment-only run for the ABM Signal Tracker dashboard. No functional changes were made — the existing codebase is built and deployed exactly as-is. The prisma/schema.prisma file is echoed verbatim (unchanged) as required for database-backed edit responses.
 
 ## Features
 
-- Responsive UI with Tailwind CSS
-- Next.js App Router pages and components
-- ABM stored-signals dashboard with Overview / Companies / Signals / Trends / Insights tabs
+- Deployment-only: zero functional changes to any page, component, route, API handler, style, config, or dependency
+- Prisma schema preserved byte-for-byte — AppSetting model with key, value, createdAt, updatedAt all unchanged
+- Arena email gate, access-denied page, and iframe middleware preserved untouched
+- Existing ABM signal dashboard (overview, companies, signals, trends, insights tabs) deployed as-is
 
 ## Tech Stack
 

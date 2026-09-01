@@ -1,22 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-09-01T09:50:12.763Z.
+> Auto-maintained by Sim Development. Last updated: 2026-09-01T10:23:18.566Z.
 
 ## Overview
 
-ABM Signal Tracker: upload a company list (CSV or XLSX) and track account signals across funding, C-suite, product and partnership activity, with a chat assistant grounded in stored signal data.
+ABM Signal Tracker — upload a company list (CSV/XLSX) and track account signals across funding, C-suite, product and partnership activity, with a stored-signals dashboard and an AI chat assistant.
 
 **Repository:** `abm-signal-dashboard`  
 **File count:** 50
 
 ## Features
 
-- Import companies via CSV/XLSX upload or manual entry
-- Signal dashboard with Overview, Companies, Signals, Trends and Insights tabs
-- KPI cards, charts and filters over stored ABM signals
-- Background analysis via upstream workflow APIs
-- Chat assistant answering questions about tracked companies and signals
-- Arena email-gated iframe access with access-denied page
+- Company list import (CSV/XLSX)
+- Stored signals dashboard with KPIs, charts and company drill-down
+- Signal severity and type filtering
+- Weekly trend, family and type breakdown charts
+- AI chat assistant over stored signal data
+- Arena email gating via middleware
 
 ## Tech Stack
 
@@ -183,24 +183,23 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-09-01T09:50:12.763Z
+- **Updated at:** 2026-09-01T10:23:18.566Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
-Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+DEPLOY ONLY — NO CODE CHANGES.
+
+The codebase is already in its correct, final state. Do not implement any feature, fix, improvement, cleanup, refactor or optimization. Make ZERO functional changes.
 
 Changes to implement:
 
-1. Remove the duplicated header content from the dashboard body, above the tab bar.
-   - The app has a top header bar containing the "ABM Signal Tracker" title, a "Refresh Dashboard" button and an "Import Companies" button. That top header bar must remain EXACTLY as it is — do not touch it.
-   - Directly below it, inside the dashboard content card above the tab bar (Overview / Companies / Signals / Trends / Insights), the same content is duplicated. Remove these three elements from that in-body row:
-     
-     b) the subtitle line reading "11 companies tracked · 34 significant signals" (the companies-tracked / significant-signals summary text)
-     c) the duplicate "Refresh Dashboard" button in that row
+(none — this is a deployment-only run)
 
-   -DO NOT REMOVE OR ALTER NAY OTHER  the tab bar, any tab, any stat card, chart, filter, or any other content. Do not change spacing, padding, margins or styling of the remaining elements beyond what is unavoidable from deleting those three elements. Do not restructure the component.
+Your only task is to build the existing code exactly as it is and deploy it to Vercel.
 
-Only touch the files/functions directly related to the points above.
-Do not change variable names, code style, or structure outside the scope of these changes.
-Do not add extra features, optimizations, or refactors that weren't requested.
-If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
-After implementing, list exactly which files and lines were changed, and why.
+- Do not add, remove, rename or restructure any file.
+- Do not change any component, page, route, API handler, style, config or dependency.
+- Do not change package.json dependency versions.
+- Do not touch prisma/schema.prisma.
+- Preserve every file byte-for-byte as it currently exists.
+
+After deploying, report the deployment URL, the deployment ID, whether the build passed, and confirm that no files were changed.
