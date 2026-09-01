@@ -1,14 +1,14 @@
 # abm-signal-dashboard
 
-Deployment-only run for the ABM Signal Tracker dashboard. No functional changes were made — the Prisma schema is echoed verbatim per the mandatory database rule, with every existing column (including updatedAt) preserved exactly as-is.
+Deployment-only run: no functional changes. The existing codebase is built and deployed exactly as-is; prisma/schema.prisma is echoed verbatim (unchanged, add-only policy respected, no columns dropped or altered).
 
 ## Features
 
-- Upload company lists (CSV/XLSX) and analyze ABM account signals
-- Track funding, C-suite, product and partnership signals per account
-- Stored signals dashboard with KPIs, trends, insights and company drill-down
-- Arena email gating with cross-origin iframe support
-- Prisma + Neon Postgres persistence for refresh event logging
+- Responsive UI with Tailwind CSS
+- Next.js App Router pages and components
+- ABM account signal tracking across funding, C-suite, product and partnership activity
+- Prisma + Neon Postgres persistence (AppSetting)
+- Arena email gating via middleware and ArenaEmailProvider
 
 ## Tech Stack
 

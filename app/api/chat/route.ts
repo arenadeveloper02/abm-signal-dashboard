@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   const apiKey = getApiKey()
   if (apiKey === '') {
     return NextResponse.json(
-      { error: 'Chat is not configured. Add OPENAI_API_KEY to the server environment.' },
+      { error: 'The chat assistant is not configured. Add OPENAI_API_KEY to the server environment.' },
       { status: 500 }
     )
   }
@@ -64,7 +64,9 @@ export async function POST(request: Request) {
   let body: Record<string, unknown> = {}
   try {
     const parsed: unknown = await request.json()
-    if (isRecord(parsed)) body = parsed
+    if (isRecord(parsed)) {
+      body = parsed
+    }
   } catch {
     body = {}
   }
@@ -73,18 +75,19 @@ export async function POST(request: Request) {
   const context = parseContext(body.context)
 
   if (messages.length === 0) {
-    return NextResponse.json({ error: 'No messages provided' }, { status: 400 })
+    return NextResponse.json({ error: 'No message provided.' }, { status: 400 })
   }
 
-  const basePrompt =
-    'You are Signal Assistant, a helpful analyst for an ABM (account-based marketing) signal dashboard. ' +
-    'Answer questions using ONLY the JSON signal data provided below. Be concise and specific: name companies, counts, dates and signal types when relevant. ' +
-    'If the data does not contain the answer, say so clearly instead of guessing. Keep answers short and skimmable.'
-
-  const systemPrompt =
-    context !== ''
-      ? `${basePrompt}\n\nSIGNAL DATA (JSON):\n${context}`
-      : `${basePrompt}\n\nNo signal data is currently available; tell the user that data could not be loaded when they ask data questions.`
+  const systemPrompt = [
+    'You are the Signal Assistant for an ABM (account-based marketing) signal dashboard.',
+    'Answer questions about the tracked companies and their signals using ONLY the JSON data provided below.',
+    'Signals belong to four families: funding, csuite, product and partnership.',
+    'Be concise and factual. When listing companies or signals, use short bullet points.',
+    'If the data does not contain the answer, say so plainly instead of guessing.',
+    '',
+    'SIGNAL DATA (JSON):',
+    context === '' ? '(no data was loaded — tell the user that data is unavailable right now)' : context,
+  ].join('\n')
 
   try {
     const upstream = await fetch(OPENAI_URL, {
@@ -96,18 +99,10 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.2,
-        max_tokens: 700,
         messages: [{ role: 'system', content: systemPrompt }, ...messages],
       }),
       cache: 'no-store',
     })
-
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: `Chat provider responded with status ${upstream.status}` },
-        { status: 502 }
-      )
-    }
 
     let raw: unknown = null
     try {
@@ -116,16 +111,23 @@ export async function POST(request: Request) {
       raw = null
     }
 
+    if (!upstream.ok) {
+      return NextResponse.json(
+        { error: `Chat API responded with status ${upstream.status}. Please try again.` },
+        { status: 502 }
+      )
+    }
+
     const reply = extractReply(raw)
     if (reply === '') {
       return NextResponse.json(
-        { error: 'Chat provider returned an empty response. Please try again.' },
+        { error: 'The chat model returned an empty reply. Please try again.' },
         { status: 502 }
       )
     }
 
     return NextResponse.json({ reply })
   } catch {
-    return NextResponse.json({ error: 'Could not reach the chat provider' }, { status: 502 })
+    return NextResponse.json({ error: 'Could not reach the chat API. Please try again.' }, { status: 502 })
   }
 }
