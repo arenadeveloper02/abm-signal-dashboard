@@ -100,9 +100,9 @@ export default function DashboardClient({ defaultEmail }: DashboardClientProps) 
     void fetchData(email, runId)
   }
 
-  const handleSelectKpi = (family: 'all' | Family) => {
+  const handleSelectKpi = (family: 'all' | Family, target: TabKey = 'signals') => {
     setFilters((prev) => ({ ...prev, family }))
-    setTab('signals')
+    setTab(target)
   }
 
   return (

@@ -31,9 +31,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export async function POST(request: Request) {
   const apiKey = getApiKey()
+
   if (!apiKey || apiKey.length === 0) {
     return NextResponse.json(
-      { error: 'Delete API not configured', missing: ['SIM_API_KEY'] },
+      { error: 'Delete-company API not configured', missing: ['SIM_API_KEY'] },
       { status: 500 }
     )
   }
@@ -41,44 +42,15 @@ export async function POST(request: Request) {
   let body: Record<string, unknown> = {}
   try {
     const parsed: unknown = await request.json()
-    if (isRecord(parsed)) body = parsed
+    if (isRecord(parsed)) {
+      body = parsed
+    }
   } catch {
     body = {}
   }
 
-  const company =
-    typeof body.company === 'string'
-      ? body.company.trim()
-      : typeof body.company_name === 'string'
-        ? body.company_name.trim()
-        : ''
-  const companyId =
-    typeof body.companyId === 'string'
-      ? body.companyId.trim()
-      : typeof body.company_id === 'string'
-        ? body.company_id.trim()
-        : ''
-
-  if (company === '' && companyId === '') {
-    return NextResponse.json(
-      { error: 'company or companyId is required' },
-      { status: 400 }
-    )
-  }
-
-  const signalsOnly = body.signalsOnly === true
-  const confirm = body.confirm !== false
   const email = await resolveRequestEmail(body)
-
-  const upstreamBody = {
-    input: {
-      ...(email !== '' ? { email } : {}),
-      company,
-      companyId,
-      confirm,
-      signalsOnly,
-    },
-  }
+  if (email !== '') body.email = email
 
   try {
     const upstream = await fetch(getApiUrl(), {
@@ -87,7 +59,7 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
         'X-API-Key': apiKey,
       },
-      body: JSON.stringify(upstreamBody),
+      body: JSON.stringify(body),
       cache: 'no-store',
     })
 
