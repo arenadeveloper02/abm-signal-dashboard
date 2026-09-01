@@ -594,6 +594,59 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       .slice(0, 10)
   }, [enriched])
 
+  const trendHighlights = useMemo(() => {
+    const mostSignals = topCompanies[0] ?? null
+    let mostHighName = ''
+    let mostHighCount = 0
+    const highByCompany = new Map<string, number>()
+    for (const e of enriched) {
+      if (e.severity !== 'HIGH') continue
+      const name = companyNameOf(e.s)
+      if (name === '\u2014') continue
+      const next = (highByCompany.get(name) ?? 0) + 1
+      highByCompany.set(name, next)
+      if (next > mostHighCount) {
+        mostHighCount = next
+        mostHighName = name
+      }
+    }
+    const mostCommonType = typeBreakdown[0] ?? null
+    const latest = enriched[0] ?? null
+    return [
+      {
+        label: 'Most Signals',
+        value: mostSignals ? mostSignals.company : '\u2014',
+        sub: mostSignals
+          ? `${mostSignals.count} total signal${mostSignals.count === 1 ? '' : 's'}`
+          : 'No companies yet',
+        accent: '#1A73E8',
+      },
+      {
+        label: 'Most High Alerts',
+        value: mostHighCount > 0 ? mostHighName : '\u2014',
+        sub:
+          mostHighCount > 0
+            ? `${mostHighCount} high-severity signal${mostHighCount === 1 ? '' : 's'}`
+            : 'No high-severity signals',
+        accent: '#F31A1A',
+      },
+      {
+        label: 'Most Common Type',
+        value: mostCommonType ? mostCommonType.type : '\u2014',
+        sub: mostCommonType
+          ? `${mostCommonType.count} occurrence${mostCommonType.count === 1 ? '' : 's'}`
+          : 'No signal types yet',
+        accent: '#B364D7',
+      },
+      {
+        label: 'Most Recent Signal',
+        value: latest ? companyNameOf(latest.s) : '\u2014',
+        sub: latest ? `${latest.displayType} \u00b7 ${formatDate(latest.dateIso)}` : 'No signals yet',
+        accent: '#3BC884',
+      },
+    ]
+  }, [enriched, topCompanies, typeBreakdown])
+
   const signalTypes = useMemo(
     () => Array.from(new Set(enriched.map((e) => e.displayType))).sort(),
     [enriched]
@@ -655,6 +708,10 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
   }
 
   const handleCardClick = (label: string) => {
+    if (label === 'Companies Tracked') {
+      setTab('companies')
+      return
+    }
     const mapped = CARD_TYPE_FILTER[label]
     setTypeFilter(mapped ?? 'all')
     setTab('signals')
@@ -1012,7 +1069,19 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
           </div>
         )}
         {tab === 'trends' && (
-          <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+          <div className='space-y-6'>
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+              {trendHighlights.map((t) => (
+                <div key={t.label} className='rounded-2xl border border-[#E2E3E5] bg-white p-4'>
+                  <p className='text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]'>{t.label}</p>
+                  <p className='mt-1 truncate text-xl font-semibold' style={{ color: t.accent }}>
+                    {t.value}
+                  </p>
+                  <p className='mt-0.5 text-xs text-[#575A66]'>{t.sub}</p>
+                </div>
+              ))}
+            </div>
+            <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
             <ChartCard title='Signals by Family'>
               {familyTotal === 0 ? (
                 <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data yet.</p>
@@ -1102,6 +1171,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 </div>
               )}
             </ChartCard>
+            </div>
           </div>
         )}
         {tab === 'insights' && (
