@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const DEFAULT_URL =
-  'https://agent.thearena.ai/api/v2/workflows/e661cbf6-ec5c-4de6-9547-59956fbf3309/execute'
+  'https://agent.thearena.ai/api/workflows/e661cbf6-ec5c-4de6-9547-59956fbf3309/execute'
 const DEFAULT_KEY = 'sk-sim-WcRnFtGpPEJfPkYcp2c_xLQmByelfYlV'
 
 function getUrl(): string {
