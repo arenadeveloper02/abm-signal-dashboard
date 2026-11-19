@@ -262,8 +262,6 @@ export interface StoredSignalsResult {
   counts_by_category?: Record<string, number>
   dashboard?: StoredDashboardTotals
   totals?: StoredSignalsTotals
-  /** Set by /api/all-stored-signals from the signed-in email's domain. */
-  hiring_enabled?: boolean
 }
 
 export type NormalizedSeverity = 'HIGH' | 'MEDIUM' | 'LOW'

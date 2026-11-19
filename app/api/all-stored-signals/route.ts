@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server'
 import { resolveRequestEmail } from '@/lib/resolve-request-email'
-import { hiringSignalsEnabled, isHiringFamilySignal, isHiringSignal } from '@/lib/utils'
-import type { StoredSignal } from '@/lib/types'
-
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
@@ -123,16 +120,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const hiringEnabled = hiringSignalsEnabled(email)
-    const out: Record<string, unknown> = { ...payload, hiring_enabled: hiringEnabled }
-
-    if (!hiringEnabled && Array.isArray(out.signals)) {
-      out.signals = (out.signals as StoredSignal[]).filter(
-        (s) => !isHiringFamilySignal(s) && !isHiringSignal(s)
-      )
-    }
-
-    return NextResponse.json(out, { status: upstream.status })
+    return NextResponse.json(payload, { status: upstream.status })
   } catch (err) {
     const detail = err instanceof Error ? err.message : 'Unknown network error'
     return NextResponse.json(

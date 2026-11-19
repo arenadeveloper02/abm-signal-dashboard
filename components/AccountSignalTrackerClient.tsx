@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { AnalyzeResult, ParsedCompany, StoredSignalsResult } from '@/lib/types'
 import { fetchAllStoredSignals } from '@/lib/fetch-all-stored-signals'
+import { ANALYZE_SIGNAL_TYPES } from '@/lib/utils'
 import StoredSignalsDashboard from '@/components/StoredSignalsDashboard'
 import { DashboardSkeleton } from '@/components/Skeletons'
 import { useArenaEmailId } from '@/components/arena-email-provider'
@@ -292,7 +293,7 @@ export default function AccountSignalTrackerClient() {
           email,
           companies: companiesPayload,
           fileName: analyzeFileName,
-          signalTypes: 'funding,csuite,product,partnership',
+          signalTypes: ANALYZE_SIGNAL_TYPES,
           lookbackDays: 90,
           batchSize: 10,
         }),

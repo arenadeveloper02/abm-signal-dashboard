@@ -11,37 +11,13 @@ import type {
 
 export const FAMILIES: Family[] = ['funding', 'csuite', 'product', 'partnership']
 
-/** Hiring is listed only for accounts on this email domain. */
-export const HIRING_SIGNAL_DOMAIN = 'northstaranesthesia.com'
-
-export function emailDomain(email: string | null | undefined): string {
-  let value = (email ?? '').trim()
-  try {
-    value = decodeURIComponent(value)
-  } catch {
-    // keep the raw value when it is not valid URI encoding
-  }
-  value = value.trim().toLowerCase()
-  const at = value.lastIndexOf('@')
-  if (at === -1 || at === value.length - 1) return value
-  return value.slice(at + 1)
+/** Hiring is listed only when the loaded data contains at least one hiring signal. */
+export function familiesForHiring(hasHiring: boolean): StoredFamily[] {
+  return hasHiring ? [...FAMILIES, 'hiring'] : [...FAMILIES]
 }
 
-export function hiringSignalsEnabled(email: string | null | undefined): boolean {
-  const domain = emailDomain(email)
-  return domain === HIRING_SIGNAL_DOMAIN
-}
-
-export function familiesForHiring(hiringEnabled: boolean): StoredFamily[] {
-  return hiringEnabled ? [...FAMILIES, 'hiring'] : [...FAMILIES]
-}
-
-const BASE_SIGNAL_TYPES = 'funding,csuite,product,partnership'
-
-/** Families sent when a company list is analyzed. Hiring is included only for NorthStar. */
-export function signalTypesForEmail(email: string | null | undefined): string {
-  return hiringSignalsEnabled(email) ? `${BASE_SIGNAL_TYPES},hiring` : BASE_SIGNAL_TYPES
-}
+/** Families requested when a company list is analyzed. */
+export const ANALYZE_SIGNAL_TYPES = 'funding,csuite,product,partnership,hiring'
 
 export const CONFIDENCES: Confidence[] = ['HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']
 

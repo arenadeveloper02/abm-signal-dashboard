@@ -452,9 +452,6 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
   const [weekFilter, setWeekFilter] = useState<string | null>(null)
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
 
-  const hiringEnabled = result.hiring_enabled === true
-  const families = useMemo<StoredFamily[]>(() => familiesForHiring(hiringEnabled), [hiringEnabled])
-
   const companies = useMemo<StoredCompany[]>(
     () => (Array.isArray(result.companies) ? result.companies : []),
     [result]
@@ -488,22 +485,20 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       .sort((a, b) => b.timestamp - a.timestamp)
   }, [result, companyByKey])
 
-  const visibleEnriched = useMemo<EnrichedSignal[]>(
-    () => (hiringEnabled ? enriched : enriched.filter((e) => familyOf(e) !== 'hiring')),
-    [enriched, hiringEnabled]
-  )
+  const hiringEnabled = useMemo(() => enriched.some((e) => familyOf(e) === 'hiring'), [enriched])
+  const families = useMemo<StoredFamily[]>(() => familiesForHiring(hiringEnabled), [hiringEnabled])
 
   const severityCounts = useMemo(() => {
     const counts: Record<NormalizedSeverity, number> = { HIGH: 0, MEDIUM: 0, LOW: 0 }
-    for (const e of visibleEnriched) counts[e.severity] += 1
+    for (const e of enriched) counts[e.severity] += 1
     return counts
-  }, [visibleEnriched])
+  }, [enriched])
 
   const typeCounts = useMemo(() => {
     const map = new Map<string, number>()
-    for (const e of visibleEnriched) map.set(e.displayType, (map.get(e.displayType) ?? 0) + 1)
+    for (const e of enriched) map.set(e.displayType, (map.get(e.displayType) ?? 0) + 1)
     return map
-  }, [visibleEnriched])
+  }, [enriched])
 
   const signalTypes = useMemo(() => Array.from(typeCounts.keys()).sort(), [typeCounts])
 
@@ -519,7 +514,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
         buckets.push({ key, label: weekLabel(key), count: 0 })
       }
     }
-    for (const e of visibleEnriched) {
+    for (const e of enriched) {
       const pos = index.get(e.weekKey)
       if (pos !== undefined) {
         const bucket = buckets[pos]
@@ -527,7 +522,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       }
     }
     return buckets
-  }, [visibleEnriched])
+  }, [enriched])
 
   const spark = useMemo(() => weeklyBuckets.map((w) => w.count), [weeklyBuckets])
 
@@ -538,7 +533,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
     dash.companies_total ??
     result.total_companies ??
     companies.length
-  const totalSignals = dash.total_signals ?? visibleEnriched.length
+  const totalSignals = dash.total_signals ?? enriched.length
   const highAlerts = dash.high_alerts ?? severityCounts.HIGH
 
   const countOfType = (label: string): number => typeCounts.get(label) ?? 0
@@ -609,7 +604,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
 
   const filteredSignals = useMemo<EnrichedSignal[]>(() => {
     const q = search.trim().toLowerCase()
-    return visibleEnriched.filter((e) => {
+    return enriched.filter((e) => {
       if (severityFilter !== 'all' && e.severity !== severityFilter) return false
       if (familyFilter !== 'all' && familyOf(e) !== familyFilter) return false
       if (typeFilter !== 'all' && e.displayType !== typeFilter) return false
@@ -622,11 +617,11 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
         return false
       return true
     })
-  }, [visibleEnriched, severityFilter, familyFilter, typeFilter, weekFilter, search])
+  }, [enriched, severityFilter, familyFilter, typeFilter, weekFilter, search])
 
   const companyRows = useMemo<CompanyRowData[]>(() => {
     const byCompany = new Map<string, EnrichedSignal[]>()
-    for (const e of visibleEnriched) {
+    for (const e of enriched) {
       const key = signalCompanyKey(e.s)
       const list = byCompany.get(key)
       if (list) list.push(e)
@@ -646,7 +641,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
         }
       })
       .sort((a, b) => b.signals.length - a.signals.length)
-  }, [companies, visibleEnriched])
+  }, [companies, enriched])
 
   const filteredCompanyRows = useMemo<CompanyRowData[]>(() => {
     const q = search.trim().toLowerCase()
@@ -676,17 +671,17 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
         family: f,
         label: FAMILY_META[f].label,
         color: FAMILY_META[f].color,
-        count: visibleEnriched.filter((e) => familyOf(e) === f).length,
+        count: enriched.filter((e) => familyOf(e) === f).length,
       })),
-    [families, visibleEnriched]
+    [families, enriched]
   )
 
   const insightGroups = useMemo(() => {
-    const high = visibleEnriched.filter((e) => e.severity === 'HIGH')
+    const high = enriched.filter((e) => e.severity === 'HIGH')
     return families
       .map((f) => ({ family: f, items: high.filter((e) => familyOf(e) === f) }))
       .filter((g) => g.items.length > 0)
-  }, [visibleEnriched, families])
+  }, [enriched, families])
 
   const hasFilters =
     severityFilter !== 'all' ||
@@ -722,7 +717,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
     setTab('signals')
   }
 
-  const recentSignals = visibleEnriched.slice(0, 15)
+  const recentSignals = enriched.slice(0, 15)
 
   return (
     <div className='min-h-screen bg-[#F7F8F9]'>
@@ -807,7 +802,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
               </ChartCard>
 
               <ChartCard title='Weekly Signal Trend (8 Weeks)'>
-                {visibleEnriched.length === 0 ? (
+                {enriched.length === 0 ? (
                   <NoData />
                 ) : (
                   <>
@@ -1042,8 +1037,8 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 </button>
               )}
               <span className='ml-auto text-xs text-[#8A8D99]'>
-                {filteredSignals.length} of {visibleEnriched.length} signal
-                {visibleEnriched.length === 1 ? '' : 's'}
+                {filteredSignals.length} of {enriched.length} signal
+                {enriched.length === 1 ? '' : 's'}
               </span>
             </div>
 
@@ -1066,7 +1061,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
         {tab === 'trends' && (
           <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
             <ChartCard title='Weekly Signal Trend (8 Weeks)'>
-              {visibleEnriched.length === 0 ? (
+              {enriched.length === 0 ? (
                 <NoData />
               ) : (
                 <>
@@ -1091,7 +1086,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
             </ChartCard>
 
             <ChartCard title='Signals by Family'>
-              {visibleEnriched.length === 0 ? (
+              {enriched.length === 0 ? (
                 <NoData />
               ) : (
                 <>
@@ -1251,7 +1246,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
 
       <footer className='mx-auto max-w-7xl px-4 pb-8'>
         <p className='text-xs text-[#8A8D99]'>
-          {formatNumber(visibleEnriched.length)} significant signal{visibleEnriched.length === 1 ? '' : 's'} across{' '}
+          {formatNumber(enriched.length)} significant signal{enriched.length === 1 ? '' : 's'} across{' '}
           {formatNumber(companies.length)} compan{companies.length === 1 ? 'y' : 'ies'}
         </p>
       </footer>

@@ -83,7 +83,6 @@ export function normalizeStoredPayload(
     counts_by_category: json.counts_by_category,
     dashboard: json.dashboard,
     totals: json.totals,
-    hiring_enabled: json.hiring_enabled === true,
     signals,
   }
 }
