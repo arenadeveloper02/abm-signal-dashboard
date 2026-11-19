@@ -2,6 +2,7 @@ import type {
   Confidence,
   Family,
   GlobalFilters,
+  StoredFamily,
   NormalizedSeverity,
   Signal,
   SourceLink,
@@ -10,13 +11,40 @@ import type {
 
 export const FAMILIES: Family[] = ['funding', 'csuite', 'product', 'partnership']
 
+/** Hiring is listed only for accounts on this email domain. */
+export const HIRING_SIGNAL_DOMAIN = 'northstaranesthesia.com'
+
+export function emailDomain(email: string | null | undefined): string {
+  const value = (email ?? '').trim().toLowerCase()
+  const at = value.lastIndexOf('@')
+  if (at === -1 || at === value.length - 1) return value
+  return value.slice(at + 1)
+}
+
+export function hiringSignalsEnabled(email: string | null | undefined): boolean {
+  const domain = emailDomain(email)
+  return domain === HIRING_SIGNAL_DOMAIN
+}
+
+export function familiesForEmail(email: string | null | undefined): StoredFamily[] {
+  return hiringSignalsEnabled(email) ? [...FAMILIES, 'hiring'] : [...FAMILIES]
+}
+
+const BASE_SIGNAL_TYPES = 'funding,csuite,product,partnership'
+
+/** Families sent when a company list is analyzed. Hiring is included only for NorthStar. */
+export function signalTypesForEmail(email: string | null | undefined): string {
+  return hiringSignalsEnabled(email) ? `${BASE_SIGNAL_TYPES},hiring` : BASE_SIGNAL_TYPES
+}
+
 export const CONFIDENCES: Confidence[] = ['HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']
 
-export const FAMILY_META: Record<Family, { label: string; color: string }> = {
+export const FAMILY_META: Record<StoredFamily, { label: string; color: string }> = {
   funding: { label: 'Funding', color: '#3BC884' },
   csuite: { label: 'C-Suite', color: '#B364D7' },
   product: { label: 'Product', color: '#00A7D6' },
   partnership: { label: 'Partnership', color: '#F8528F' },
+  hiring: { label: 'Hiring', color: '#7B61FF' },
 }
 
 export const CONFIDENCE_META: Record<Confidence, { color: string }> = {
@@ -114,6 +142,18 @@ export function isCreativeHiring(s: StoredSignal): boolean {
   return (type.includes('CREATIVE') || type.includes('MARKETING')) && (type.includes('HIR') || type.includes('RECRUIT'))
 }
 
+export function isHiringFamilySignal(s: StoredSignal): boolean {
+  return (s.signal_family ?? '').toLowerCase().trim() === 'hiring'
+}
+
+/** Hiring family, or a non-creative hiring / recruiting / job-posting type. */
+export function isHiringSignal(s: StoredSignal): boolean {
+  if (isCreativeHiring(s)) return false
+  if (isHiringFamilySignal(s)) return true
+  const type = (s.signal_type ?? '').toUpperCase().replace(/[\s-]+/g, '_')
+  return type.includes('HIRING') || type.includes('RECRUIT') || type.includes('JOB_POST')
+}
+
 const CSUITE_EXIT_KEYWORDS = [
   'EXIT',
   'DEPART',
@@ -146,6 +186,7 @@ export function storedDisplayType(s: StoredSignal): string {
   }
   if (family === 'product') return 'Product Launch'
   if (family === 'partnership') return 'Partnership'
+  if (family === 'hiring') return 'Hiring'
   return 'News Mention'
 }
 

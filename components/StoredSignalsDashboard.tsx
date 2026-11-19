@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
-  Family,
+  StoredFamily,
   KpiPill,
   NormalizedSeverity,
   SourceLink,
@@ -17,12 +17,15 @@ import TabBar from '@/components/TabBar'
 import KpiCard from '@/components/KpiCard'
 import { useArenaEmailId } from '@/components/arena-email-provider'
 import {
-  FAMILIES,
   FAMILY_META,
   NO_SIGNIFICANT_SIGNAL,
+  familiesForEmail,
   formatDate,
   formatNumber,
   getStoredSourceLinks,
+  hiringSignalsEnabled,
+  isHiringFamilySignal,
+  isHiringSignal,
   normalizeStoredSeverity,
   relativeTime,
   storedDisplayType,
@@ -111,11 +114,12 @@ const TYPE_COLOR_ORDER = [
   'IPO',
   'Product Launch',
   'Partnership',
+  'Hiring',
   'News Mention',
   'Creative Hiring',
 ]
 
-const TYPE_PALETTE = ['#B364D7', '#F8528F', '#3BC884', '#FB8145', '#DFC612', '#00A7D6', '#1A73E8', '#6D717F', '#FF5252']
+const TYPE_PALETTE = ['#B364D7', '#F8528F', '#3BC884', '#FB8145', '#DFC612', '#00A7D6', '#7B61FF', '#1A73E8', '#6D717F', '#FF5252']
 
 function typeColor(label: string): string {
   const i = TYPE_COLOR_ORDER.indexOf(label)
@@ -192,6 +196,7 @@ function companyNameOf(s: StoredSignal): string {
 }
 
 function familyOf(e: EnrichedSignal): string {
+  if (e.displayType === 'Hiring') return 'hiring'
   return (e.s.signal_family ?? '').toLowerCase()
 }
 
@@ -320,6 +325,7 @@ const CARD_TYPE_FILTER: Record<string, string | undefined> = {
   'Product Launches': 'Product Launch',
   Partnerships: 'Partnership',
   'Creative Hiring': 'Creative Hiring',
+  Hiring: 'Hiring',
 }
 
 const selectCls =
@@ -416,9 +422,11 @@ function ChartCard({ title, children, className }: { title: string; children: Re
 
 export default function StoredSignalsDashboard({ result, onRefresh }: StoredSignalsDashboardProps) {
   const email = useArenaEmailId()
+  const hiringEnabled = hiringSignalsEnabled(email)
+  const families = useMemo(() => familiesForEmail(email), [email])
   const [tab, setTab] = useState<TabKey>('overview')
   const [severityFilter, setSeverityFilter] = useState<'all' | NormalizedSeverity>('all')
-  const [familyFilter, setFamilyFilter] = useState<'all' | Family>('all')
+  const [familyFilter, setFamilyFilter] = useState<'all' | StoredFamily>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null)
@@ -439,6 +447,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
     for (const s of result.signals) {
       const type = (s.signal_type ?? '').toUpperCase()
       if (type.includes(NO_SIGNIFICANT_SIGNAL)) continue
+      if (isHiringFamilySignal(s) && !hiringEnabled) continue
       const dateIso = storedSignalDate(s)
       const d = new Date(dateIso)
       const timestamp = Number.isNaN(d.getTime()) ? 0 : d.getTime()
@@ -448,7 +457,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       out.push({
         s,
         severity: normalizeStoredSeverity(s),
-        displayType: storedDisplayType(s),
+        displayType: hiringEnabled && isHiringSignal(s) ? 'Hiring' : storedDisplayType(s),
         dateIso,
         timestamp,
         weekKey: timestamp === 0 ? '' : weekKeyOf(d),
@@ -457,7 +466,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       })
     }
     return out.sort((a, b) => b.timestamp - a.timestamp)
-  }, [result.signals, companyByKey])
+  }, [result.signals, companyByKey, hiringEnabled])
 
   const companyOf = (e: EnrichedSignal): StoredCompany | undefined => {
     const byKey = companyByKey.get((e.s.company_key ?? '').trim())
@@ -554,6 +563,15 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       spark,
     },
   ]
+  if (hiringEnabled) {
+    cards.push({
+      icon: '\u{1F4BC}',
+      label: 'Hiring',
+      value: typeCounts.get('Hiring') ?? 0,
+      accent: '#7B61FF',
+      spark,
+    })
+  }
 
   const severityData = useMemo(
     () => SEVERITIES.map((sv) => ({ name: sv, value: severityCounts[sv], color: OVERVIEW_SEVERITY_COLORS[sv] })),
@@ -563,13 +581,13 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
 
   const familyData = useMemo(
     () =>
-      FAMILIES.map((f) => ({
+      families.map((f) => ({
         family: f,
         name: FAMILY_META[f].label,
         value: enriched.filter((e) => familyOf(e) === f).length,
         color: FAMILY_META[f].color,
       })),
-    [enriched]
+    [enriched, families]
   )
   const familyTotal = familyData.reduce((acc, d) => acc + d.value, 0)
 
@@ -877,7 +895,18 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
               <table className='w-full min-w-[860px] text-sm'>
                 <thead>
                   <tr>
-                    {['Company', 'Industry', 'Total', 'Funding', 'C-Suite', 'Product', 'Partnership', 'Last Activity', 'Actions'].map(
+                    {[
+                      'Company',
+                      'Industry',
+                      'Total',
+                      'Funding',
+                      'C-Suite',
+                      'Product',
+                      'Partnership',
+                      ...(hiringEnabled ? ['Hiring'] : []),
+                      'Last Activity',
+                      'Actions',
+                    ].map(
                       (h) => (
                         <th
                           key={h}
@@ -892,7 +921,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 <tbody>
                   {companyRows.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className='px-4 py-12 text-center text-sm text-[#8A8D99]'>
+                      <td colSpan={hiringEnabled ? 10 : 9} className='px-4 py-12 text-center text-sm text-[#8A8D99]'>
                         No companies tracked yet. Import a company list to get started.
                       </td>
                     </tr>
@@ -922,6 +951,11 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                             <td className='px-4 py-3 text-[#575A66]'>{row.company.by_family?.csuite ?? 0}</td>
                             <td className='px-4 py-3 text-[#575A66]'>{row.company.by_family?.product ?? 0}</td>
                             <td className='px-4 py-3 text-[#575A66]'>{row.company.by_family?.partnership ?? 0}</td>
+                            {hiringEnabled && (
+                              <td className='px-4 py-3 text-[#575A66]'>
+                                {row.signals.filter((e) => familyOf(e) === 'hiring').length}
+                              </td>
+                            )}
                             <td className='px-4 py-3 text-[#8A8D99]'>{lastActivityOf(row)}</td>
                             <td className='px-4 py-3'>
                               <button
@@ -939,7 +973,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                           </tr>
                           {expanded && (
                             <tr className='border-b border-[#F0F1F2] last:border-b-0'>
-                              <td colSpan={9} className='bg-[#F7F8F9] px-6 py-5'>
+                              <td colSpan={hiringEnabled ? 10 : 9} className='bg-[#F7F8F9] px-6 py-5'>
                                 <div className='space-y-4'>
                                   <CompanyInfoSection company={row.company} />
                                   {(row.techStack.length > 0 || row.keywords.length > 0) && (
@@ -1019,10 +1053,10 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 className={selectCls}
                 aria-label='Filter by family'
                 value={familyFilter}
-                onChange={(e) => setFamilyFilter(e.target.value as 'all' | Family)}
+                onChange={(e) => setFamilyFilter(e.target.value as 'all' | StoredFamily)}
               >
                 <option value='all'>All families</option>
-                {FAMILIES.map((f) => (
+                {families.map((f) => (
                   <option key={f} value={f}>
                     {FAMILY_META[f].label}
                   </option>

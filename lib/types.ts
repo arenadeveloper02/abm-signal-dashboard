@@ -1,5 +1,8 @@
 export type Family = 'funding' | 'csuite' | 'product' | 'partnership'
 
+/** Hiring is offered only for the NorthStar Anesthesia account. */
+export type StoredFamily = Family | 'hiring'
+
 export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN'
 
 export type TabKey = 'overview' | 'companies' | 'signals' | 'trends' | 'insights'
@@ -149,6 +152,7 @@ export interface StoredSignalsCounts {
   csuite: number
   product: number
   partnership: number
+  hiring?: number
 }
 
 export interface StoredCompany {

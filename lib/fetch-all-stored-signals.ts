@@ -67,6 +67,7 @@ export function normalizeStoredPayload(
       csuite: json.counts_by_family?.csuite ?? 0,
       product: json.counts_by_family?.product ?? 0,
       partnership: json.counts_by_family?.partnership ?? 0,
+      ...(typeof json.counts_by_family?.hiring === 'number' ? { hiring: json.counts_by_family.hiring } : {}),
     },
     unmatched_inputs: Array.isArray(json.unmatched_inputs) ? json.unmatched_inputs : [],
     companies,
