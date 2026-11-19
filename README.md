@@ -1,16 +1,14 @@
 # abm-signal-dashboard
 
-ABM Signal Tracker dashboard — surgical edit: removed the middleware emailId gate (dashboard loads without ?emailId while keeping frame-ancestors CSP and optional cookie persistence), made useArenaEmailId return '' instead of throwing, restored the Company info section (description, facts, tech/keyword chips) on expanded company rows while keeping the Delete action, and ensured only the top header Refresh bar remains. prisma/schema.prisma is returned verbatim and untouched.
+Deployment-only run for the ABM Signal Tracker dashboard. No functional changes were made — the existing codebase is built and deployed exactly as-is. The prisma/schema.prisma file is echoed verbatim (unchanged, byte-for-byte) as required for every database-backed edit response; no columns were added, dropped, renamed, or retyped, and updatedAt remains intact on AppSetting.
 
 ## Features
 
-- Dashboard loads at / without emailId query or cookie (no access-denied rewrite)
-- Companies table with Company, Industry, Total, Funding, C-Suite, Product, Partnership, Last Activity, Actions columns
-- Delete button per company posting to /api/delete-company
-- Restored Company info section on row expand: short description, Domain/Industry/Website/LinkedIn/Employees/Location facts, tech stack and keyword chips
-- Expandable recent signals under each company row
-- Single Refresh Dashboard control (top header only, from AccountSignalTrackerClient)
-- Overview KPIs and recharts visualizations (family pie, weekly volume, top companies, top types)
+- Upload company lists (CSV/XLSX) and track ABM account signals
+- Signals across funding, C-suite, product and partnership activity
+- Stored signals dashboard with KPIs, trends and insights
+- Arena email-gated access with cross-origin iframe support
+- Prisma + Neon Postgres persistence for refresh event logging
 
 ## Tech Stack
 

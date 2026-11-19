@@ -76,6 +76,7 @@ interface StoredCardDef {
   accent: string
   spark: number[]
   pills?: KpiPill[]
+  target?: TabKey
 }
 
 interface WeekBucket {
@@ -207,6 +208,28 @@ function splitHeadline(summary: string): { headline: string; description: string
     return { headline: text.slice(0, idx + 1), description: text.slice(idx + 2) }
   }
   return { headline: text, description: '' }
+}
+
+function isSignificant(s: StoredSignal): boolean {
+  const t = (s.signal_type ?? '').trim().toUpperCase()
+  const k = (s.signal_key ?? '').trim().toUpperCase()
+  return t !== NO_SIGNIFICANT_SIGNAL && k !== NO_SIGNIFICANT_SIGNAL
+}
+
+function companyKeyOf(c: StoredCompany): string {
+  const k = (c.company_key ?? '').trim()
+  if (k !== '') return k.toLowerCase()
+  const id = (c.company_id ?? '').trim()
+  if (id !== '') return id.toLowerCase()
+  return (c.company_name ?? '').trim().toLowerCase()
+}
+
+function signalCompanyKey(s: StoredSignal): string {
+  const k = (s.company_key ?? '').trim()
+  if (k !== '') return k.toLowerCase()
+  const id = (s.company_id ?? '').trim()
+  if (id !== '') return id.toLowerCase()
+  return companyNameOf(s).toLowerCase()
 }
 
 function SeverityBadge({ severity }: { severity: NormalizedSeverity }) {
@@ -384,18 +407,18 @@ function CompanyInfoSection({ company }: { company: StoredCompany }) {
 
   return (
     <section
-      aria-label={`Company info for ${company.company_name}`}
+      aria-label={`Company details for ${company.company_name}`}
       className='rounded-xl border border-[#E2E3E5] bg-white p-4'
     >
-      <h3 className='text-xs font-semibold uppercase tracking-wide text-[#8A8D99]'>Company info</h3>
-      <p className='mt-1 text-sm leading-relaxed text-[#575A66]'>
-        {description !== '' ? description : 'No description available for this company.'}
-      </p>
+      <h3 className='text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'>Company Info</h3>
+      {description !== '' && (
+        <p className='mt-2 text-sm leading-relaxed text-[#575A66]'>{description}</p>
+      )}
       <dl className='mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3'>
         {facts.map((f) => (
-          <div key={f.label} className='flex items-baseline gap-2'>
-            <dt className='shrink-0 text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]'>{f.label}</dt>
-            <dd className='min-w-0 truncate text-xs text-[#2C2D33]'>
+          <div key={f.label} className='flex items-baseline gap-2 text-xs'>
+            <dt className='shrink-0 font-medium text-[#8A8D99]'>{f.label}:</dt>
+            <dd className='min-w-0 truncate text-[#2C2D33]'>
               {f.href ? (
                 <a href={f.href} target='_blank' rel='noopener noreferrer' className='text-[#1A73E8] hover:underline'>
                   {f.value}
@@ -411,82 +434,111 @@ function CompanyInfoSection({ company }: { company: StoredCompany }) {
   )
 }
 
-function ChartCard({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
+function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className={`rounded-2xl border border-[#E2E3E5] bg-white p-5 ${className ?? ''}`} aria-label={title}>
+    <section className='rounded-2xl border border-[#E2E3E5] bg-white p-5' aria-label={title}>
       <h2 className='text-sm font-semibold text-[#575A66]'>{title}</h2>
       {children}
     </section>
   )
 }
 
+function NoData() {
+  return <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data yet</p>
+}
+
 export default function StoredSignalsDashboard({ result, onRefresh }: StoredSignalsDashboardProps) {
   const email = useArenaEmailId()
-  const hiringEnabled = hiringSignalsEnabled(email)
-  const families = useMemo(() => familiesForEmail(email), [email])
   const [tab, setTab] = useState<TabKey>('overview')
+  const [search, setSearch] = useState('')
+  const [companySearch, setCompanySearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [severityFilter, setSeverityFilter] = useState<'all' | NormalizedSeverity>('all')
   const [familyFilter, setFamilyFilter] = useState<'all' | StoredFamily>('all')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [search, setSearch] = useState('')
-  const [selectedWeek, setSelectedWeek] = useState<string | null>(null)
+  const [weekFilter, setWeekFilter] = useState<string | null>(null)
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
-  const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const hiringEnabled = hiringSignalsEnabled(email)
+  const families = useMemo<StoredFamily[]>(() => familiesForEmail(email), [email])
+  const companies = useMemo<StoredCompany[]>(
+    () => (Array.isArray(result.companies) ? result.companies : []),
+    [result.companies]
+  )
 
   const companyByKey = useMemo(() => {
     const map = new Map<string, StoredCompany>()
-    for (const c of result.companies ?? []) {
-      if ((c.company_key ?? '').trim() !== '') map.set(c.company_key, c)
-      if ((c.company_name ?? '').trim() !== '') map.set(c.company_name.toLowerCase(), c)
+    for (const c of companies) {
+      for (const raw of [c.company_key, c.company_id, c.company_name]) {
+        const k = (raw ?? '').trim().toLowerCase()
+        if (k !== '' && !map.has(k)) map.set(k, c)
+      }
     }
     return map
-  }, [result.companies])
+  }, [companies])
 
-  const enriched = useMemo<EnrichedSignal[]>(() => {
-    const out: EnrichedSignal[] = []
-    for (const s of result.signals) {
-      const type = (s.signal_type ?? '').toUpperCase()
-      if (type.includes(NO_SIGNIFICANT_SIGNAL)) continue
-      if (isHiringFamilySignal(s) && !hiringEnabled) continue
-      const dateIso = storedSignalDate(s)
-      const d = new Date(dateIso)
-      const timestamp = Number.isNaN(d.getTime()) ? 0 : d.getTime()
-      const company =
-        companyByKey.get((s.company_key ?? '').trim()) ??
-        companyByKey.get(companyNameOf(s).toLowerCase())
-      out.push({
-        s,
-        severity: normalizeStoredSeverity(s),
-        displayType: hiringEnabled && isHiringSignal(s) ? 'Hiring' : storedDisplayType(s),
-        dateIso,
-        timestamp,
-        weekKey: timestamp === 0 ? '' : weekKeyOf(d),
-        industry: company ? industryOf(company) : '\u2014',
-        links: getStoredSourceLinks(s),
-      })
+  const companyFor = (s: StoredSignal): StoredCompany | undefined => {
+    for (const raw of [s.company_key, s.company_id, s.company_name, s.company]) {
+      const k = (raw ?? '').trim().toLowerCase()
+      if (k !== '') {
+        const c = companyByKey.get(k)
+        if (c) return c
+      }
     }
-    return out.sort((a, b) => b.timestamp - a.timestamp)
-  }, [result.signals, companyByKey, hiringEnabled])
-
-  const companyOf = (e: EnrichedSignal): StoredCompany | undefined => {
-    const byKey = companyByKey.get((e.s.company_key ?? '').trim())
-    if (byKey) return byKey
-    return companyByKey.get(companyNameOf(e.s).toLowerCase())
+    return undefined
   }
 
-  const severityCounts = useMemo<Record<NormalizedSeverity, number>>(() => {
+  const enriched = useMemo<EnrichedSignal[]>(() => {
+    const lookup = (s: StoredSignal): StoredCompany | undefined => {
+      for (const raw of [s.company_key, s.company_id, s.company_name, s.company]) {
+        const k = (raw ?? '').trim().toLowerCase()
+        if (k !== '') {
+          const c = companyByKey.get(k)
+          if (c) return c
+        }
+      }
+      return undefined
+    }
+    const rows = Array.isArray(result.signals) ? result.signals : []
+    return rows
+      .filter((s) => isSignificant(s))
+      .filter((s) => hiringEnabled || !(isHiringFamilySignal(s) || isHiringSignal(s)))
+      .map((s) => {
+        const dateIso = storedSignalDate(s)
+        const d = new Date(dateIso)
+        const valid = !Number.isNaN(d.getTime())
+        const company = lookup(s)
+        return {
+          s,
+          severity: normalizeStoredSeverity(s),
+          displayType: storedDisplayType(s),
+          dateIso,
+          timestamp: valid ? d.getTime() : 0,
+          weekKey: valid ? weekKeyOf(d) : '',
+          industry: company ? industryOf(company) : '\u2014',
+          links: getStoredSourceLinks(s),
+        }
+      })
+      .sort((a, b) => b.timestamp - a.timestamp)
+  }, [result.signals, hiringEnabled, companyByKey])
+
+  const sevCounts = useMemo<Record<NormalizedSeverity, number>>(() => {
     const counts: Record<NormalizedSeverity, number> = { HIGH: 0, MEDIUM: 0, LOW: 0 }
     for (const e of enriched) counts[e.severity] += 1
     return counts
   }, [enriched])
 
-  const typeCounts = useMemo(() => {
+  const typeData = useMemo(() => {
     const map = new Map<string, number>()
     for (const e of enriched) map.set(e.displayType, (map.get(e.displayType) ?? 0) + 1)
-    return map
+    return Array.from(map.entries())
+      .map(([type, count]) => ({ type, count, color: typeColor(type) }))
+      .sort((a, b) => b.count - a.count)
   }, [enriched])
 
-  const weeklyData = useMemo<WeekBucket[]>(() => {
+  const typeTotal = typeData.reduce((acc, t) => acc + t.count, 0)
+
+  const weekly = useMemo<WeekBucket[]>(() => {
     const now = new Date()
     const buckets: WeekBucket[] = []
     const index = new Map<string, number>()
@@ -494,6 +546,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
       const d = new Date(now)
       d.setDate(d.getDate() - i * 7)
       const key = weekKeyOf(d)
+      if (index.has(key)) continue
       index.set(key, buckets.length)
       buckets.push({ key, label: weekLabel(key), count: 0 })
     }
@@ -507,274 +560,296 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
     return buckets
   }, [enriched])
 
-  const spark = weeklyData.map((w) => w.count)
+  const weeklyCountsFor = (pred: (e: EnrichedSignal) => boolean): number[] =>
+    weekly.map((w) => enriched.filter((e) => e.weekKey === w.key && pred(e)).length)
 
-  const dash: StoredDashboardTotals = result.dashboard ?? {}
-  const totalCompanies =
-    dash.total_companies ??
-    dash.companies_total ??
-    dash.companies_tracked ??
-    result.total_companies ??
-    (result.companies ?? []).length
+  const typeCountOf = (label: string): number => typeData.find((t) => t.type === label)?.count ?? 0
 
-  const cards: StoredCardDef[] = [
-    { icon: '\u{1F3E2}', label: 'Companies Tracked', value: totalCompanies, accent: '#00A7D6', spark },
-    {
-      icon: '\u{1F4E1}',
-      label: 'Total Signals',
-      value: dash.total_signals ?? enriched.length,
-      accent: '#1A73E8',
-      spark,
-      pills: [
-        { label: 'H', value: dash.high_alerts ?? severityCounts.HIGH, color: '#FF5252' },
-        { label: 'M', value: dash.medium_alerts ?? severityCounts.MEDIUM, color: '#FB8145' },
-        { label: 'L', value: dash.low_alerts ?? severityCounts.LOW, color: '#9AA0AE' },
-      ],
-    },
-    { icon: '\u{1F6A8}', label: 'High Alerts', value: dash.high_alerts ?? severityCounts.HIGH, accent: '#F31A1A', spark },
-    {
-      icon: '\u{1F454}',
-      label: 'C-Suite Changes',
-      value: dash.csuite_changes ?? (typeCounts.get('C-Suite Join') ?? 0) + (typeCounts.get('C-Suite Exit') ?? 0),
-      accent: '#B364D7',
-      spark,
-    },
-    { icon: '\u{1F4B0}', label: 'Funding', value: dash.funding ?? typeCounts.get('Funding Round') ?? 0, accent: '#3BC884', spark },
-    {
-      icon: '\u{1F91D}',
-      label: 'Mergers & Acquisitions',
-      value: dash.mergers_acquisitions ?? typeCounts.get('Acquisition / M&A') ?? 0,
-      accent: '#FB8145',
-      spark,
-    },
-    { icon: '\u{1F4C8}', label: 'IPO', value: dash.ipo ?? typeCounts.get('IPO') ?? 0, accent: '#DFC612', spark },
-    {
-      icon: '\u{1F680}',
-      label: 'Product Launches',
-      value: dash.product_launches ?? typeCounts.get('Product Launch') ?? 0,
-      accent: '#00A7D6',
-      spark,
-    },
-    {
-      icon: '\u{1F517}',
-      label: 'Partnerships',
-      value: dash.partnerships ?? typeCounts.get('Partnership') ?? 0,
-      accent: '#F8528F',
-      spark,
-    },
-  ]
-  if (hiringEnabled) {
-    cards.push({
-      icon: '\u{1F4BC}',
-      label: 'Hiring',
-      value: typeCounts.get('Hiring') ?? 0,
-      accent: '#7B61FF',
-      spark,
-    })
-  }
+  const dash: StoredDashboardTotals | undefined = result.dashboard
+  const companiesTracked =
+    dash?.companies_tracked ?? dash?.total_companies ?? result.total_companies ?? companies.length
+  const totalSignals = enriched.length
+  const csuiteCount = typeCountOf('C-Suite Join') + typeCountOf('C-Suite Exit')
 
-  const severityData = useMemo(
-    () => SEVERITIES.map((sv) => ({ name: sv, value: severityCounts[sv], color: OVERVIEW_SEVERITY_COLORS[sv] })),
-    [severityCounts]
-  )
-  const severityTotal = severityData.reduce((acc, d) => acc + d.value, 0)
+  const severityData = SEVERITIES.map((sev) => ({
+    name: sev,
+    value: sevCounts[sev],
+    color: OVERVIEW_SEVERITY_COLORS[sev],
+  }))
 
   const familyData = useMemo(
     () =>
       families.map((f) => ({
-        family: f,
         name: FAMILY_META[f].label,
         value: enriched.filter((e) => familyOf(e) === f).length,
         color: FAMILY_META[f].color,
       })),
-    [enriched, families]
+    [families, enriched]
   )
-  const familyTotal = familyData.reduce((acc, d) => acc + d.value, 0)
 
-  const typeBreakdown = useMemo(
+  const companyRows = useMemo<CompanyRowData[]>(() => {
+    const byKey = new Map<string, EnrichedSignal[]>()
+    for (const e of enriched) {
+      const k = signalCompanyKey(e.s)
+      const arr = byKey.get(k)
+      if (arr) arr.push(e)
+      else byKey.set(k, [e])
+    }
+    return companies
+      .map((c, i) => {
+        const k = companyKeyOf(c)
+        const signals = byKey.get(k) ?? []
+        return {
+          key: k !== '' ? k : `company-${i}`,
+          company: c,
+          signals,
+          latest: signals.length > 0 ? signals[0] ?? null : null,
+          techStack: extraList(c, ['tech_stack', 'technologies', 'techStack']),
+          keywords: extraList(c, ['keywords', 'tags']),
+        }
+      })
+      .sort(
+        (a, b) =>
+          b.signals.length - a.signals.length ||
+          a.company.company_name.localeCompare(b.company.company_name)
+      )
+  }, [companies, enriched])
+
+  const visibleCompanyRows = useMemo(() => {
+    const q = companySearch.trim().toLowerCase()
+    if (q === '') return companyRows
+    return companyRows.filter(
+      (r) =>
+        r.company.company_name.toLowerCase().includes(q) ||
+        industryOf(r.company).toLowerCase().includes(q)
+    )
+  }, [companyRows, companySearch])
+
+  const topCompanies = useMemo(
     () =>
-      Array.from(typeCounts.entries())
-        .map(([type, count]) => ({ type, count, color: typeColor(type) }))
-        .sort((a, b) => b.count - a.count),
-    [typeCounts]
-  )
-
-  const topCompanies = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const e of enriched) {
-      const name = companyNameOf(e.s)
-      if (name === '\u2014') continue
-      map.set(name, (map.get(name) ?? 0) + 1)
-    }
-    return Array.from(map.entries())
-      .map(([company, count]) => ({ company, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10)
-  }, [enriched])
-
-  const trendHighlights = useMemo(() => {
-    const mostSignals = topCompanies[0] ?? null
-    let mostHighName = ''
-    let mostHighCount = 0
-    const highByCompany = new Map<string, number>()
-    for (const e of enriched) {
-      if (e.severity !== 'HIGH') continue
-      const name = companyNameOf(e.s)
-      if (name === '\u2014') continue
-      const next = (highByCompany.get(name) ?? 0) + 1
-      highByCompany.set(name, next)
-      if (next > mostHighCount) {
-        mostHighCount = next
-        mostHighName = name
-      }
-    }
-    const mostCommonType = typeBreakdown[0] ?? null
-    const latest = enriched[0] ?? null
-    return [
-      {
-        label: 'Most Signals',
-        value: mostSignals ? mostSignals.company : '\u2014',
-        sub: mostSignals
-          ? `${mostSignals.count} total signal${mostSignals.count === 1 ? '' : 's'}`
-          : 'No companies yet',
-        accent: '#1A73E8',
-      },
-      {
-        label: 'Most High Alerts',
-        value: mostHighCount > 0 ? mostHighName : '\u2014',
-        sub:
-          mostHighCount > 0
-            ? `${mostHighCount} high-severity signal${mostHighCount === 1 ? '' : 's'}`
-            : 'No high-severity signals',
-        accent: '#F31A1A',
-      },
-      {
-        label: 'Most Common Type',
-        value: mostCommonType ? mostCommonType.type : '\u2014',
-        sub: mostCommonType
-          ? `${mostCommonType.count} occurrence${mostCommonType.count === 1 ? '' : 's'}`
-          : 'No signal types yet',
-        accent: '#B364D7',
-      },
-      {
-        label: 'Most Recent Signal',
-        value: latest ? companyNameOf(latest.s) : '\u2014',
-        sub: latest ? `${latest.displayType} \u00b7 ${formatDate(latest.dateIso)}` : 'No signals yet',
-        accent: '#3BC884',
-      },
-    ]
-  }, [enriched, topCompanies, typeBreakdown])
-
-  const signalTypes = useMemo(
-    () => Array.from(new Set(enriched.map((e) => e.displayType))).sort(),
-    [enriched]
+      companyRows
+        .filter((r) => r.signals.length > 0)
+        .slice(0, 10)
+        .map((r) => ({ company: r.company.company_name, count: r.signals.length })),
+    [companyRows]
   )
 
   const filteredSignals = useMemo(() => {
     const q = search.trim().toLowerCase()
     return enriched.filter((e) => {
       if (severityFilter !== 'all' && e.severity !== severityFilter) return false
-      if (familyFilter !== 'all' && familyOf(e) !== familyFilter) return false
       if (typeFilter !== 'all' && e.displayType !== typeFilter) return false
-      if (selectedWeek !== null && e.weekKey !== selectedWeek) return false
+      if (familyFilter !== 'all' && familyOf(e) !== familyFilter) return false
       if (
         q !== '' &&
         !companyNameOf(e.s).toLowerCase().includes(q) &&
-        !(e.s.summary ?? '').toLowerCase().includes(q)
+        !(e.s.summary ?? '').toLowerCase().includes(q) &&
+        !e.displayType.toLowerCase().includes(q)
       )
         return false
       return true
     })
-  }, [enriched, severityFilter, familyFilter, typeFilter, selectedWeek, search])
+  }, [enriched, severityFilter, typeFilter, familyFilter, search])
 
-  const overviewFeed = useMemo(() => {
-    const base = selectedWeek === null ? enriched : enriched.filter((e) => e.weekKey === selectedWeek)
-    return base.slice(0, 12)
-  }, [enriched, selectedWeek])
+  const recentFeed = useMemo(() => {
+    const base = weekFilter === null ? enriched : enriched.filter((e) => e.weekKey === weekFilter)
+    return base.slice(0, 20)
+  }, [enriched, weekFilter])
 
-  const companyRows = useMemo<CompanyRowData[]>(() => {
-    const map = new Map<string, EnrichedSignal[]>()
-    for (const e of enriched) {
-      const key =
-        (e.s.company_key ?? '').trim() !== '' ? e.s.company_key : companyNameOf(e.s).toLowerCase()
-      const arr = map.get(key)
-      if (arr) arr.push(e)
-      else map.set(key, [e])
-    }
-    const rows: CompanyRowData[] = []
-    for (const c of result.companies ?? []) {
-      const signals = map.get(c.company_key) ?? map.get(c.company_name.toLowerCase()) ?? []
-      rows.push({
-        key: (c.company_id ?? '').trim() !== '' ? c.company_id : c.company_key,
-        company: c,
-        signals,
-        latest: signals[0] ?? null,
-        techStack: extraList(c, ['tech_stack', 'technologies']),
-        keywords: extraList(c, ['keywords', 'tags']),
-      })
-    }
-    return rows.sort((a, b) => b.signals.length - a.signals.length)
-  }, [enriched, result.companies])
+  const highSignals = useMemo(() => enriched.filter((e) => e.severity === 'HIGH'), [enriched])
 
-  const insights = useMemo(() => enriched.filter((e) => e.severity === 'HIGH'), [enriched])
+  const latestSignal = enriched.length > 0 ? enriched[0] ?? null : null
+  const topType = typeData.length > 0 ? typeData[0] ?? null : null
+  const topCompanyRow = companyRows.find((r) => r.signals.length > 0) ?? null
 
-  const lastActivityOf = (row: CompanyRowData): string => {
-    const la = (row.company.last_analysed_at ?? '').trim()
-    if (la !== '') return relativeTime(la)
-    if (row.latest) return relativeTime(row.latest.dateIso)
-    return '\u2014'
-  }
+  const insightTiles = [
+    {
+      label: 'Most Signals',
+      value: topCompanyRow ? topCompanyRow.company.company_name : '\u2014',
+      sub: topCompanyRow
+        ? `${topCompanyRow.signals.length} total signal${topCompanyRow.signals.length === 1 ? '' : 's'}`
+        : 'No companies yet',
+      accent: '#1A73E8',
+    },
+    {
+      label: 'High Alerts',
+      value: formatNumber(sevCounts.HIGH),
+      sub: 'High-severity signals across all accounts',
+      accent: '#F31A1A',
+    },
+    {
+      label: 'Most Common Type',
+      value: topType ? topType.type : '\u2014',
+      sub: topType ? `${topType.count} occurrence${topType.count === 1 ? '' : 's'}` : 'No signal types yet',
+      accent: '#B364D7',
+    },
+    {
+      label: 'Most Recent Signal',
+      value: latestSignal ? companyNameOf(latestSignal.s) : '\u2014',
+      sub: latestSignal ? `${latestSignal.displayType} \u00b7 ${formatDate(latestSignal.dateIso)}` : 'No signals yet',
+      accent: '#3BC884',
+    },
+  ]
 
-  const handleCardClick = (label: string) => {
-    if (label === 'Companies Tracked') {
-      setTab('companies')
-      return
-    }
-    const mapped = CARD_TYPE_FILTER[label]
-    setTypeFilter(mapped ?? 'all')
-    setTab('signals')
-  }
+  const selectedWeekLabel = weekFilter !== null ? (weekly.find((w) => w.key === weekFilter)?.label ?? '') : ''
 
-  const toggleCompany = (key: string) => {
-    setExpandedCompany((prev) => (prev === key ? null : key))
-  }
-
-  const handleDelete = async (row: CompanyRowData) => {
-    if (deletingKey !== null) return
-    const name = row.company.company_name
-    if (!window.confirm(`Delete ${name} and all of its stored signals?`)) return
-    setDeletingKey(row.key)
-    try {
-      const res = await fetch('/api/delete-company', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          company: name,
-          companyId: row.company.company_id,
-          confirm: true,
-        }),
-      })
-      if (res.ok && onRefresh) await onRefresh()
-    } catch {
-      // network failure — keep the row; user can retry
-    } finally {
-      setDeletingKey(null)
-    }
+  const handleWeekClick = (state: unknown) => {
+    const label = activeLabelOf(state)
+    if (!label) return
+    const bucket = weekly.find((w) => w.label === label)
+    if (!bucket) return
+    setWeekFilter((prev) => (prev === bucket.key ? null : bucket.key))
   }
 
   const clearFilters = () => {
+    setSearch('')
+    setTypeFilter('all')
     setSeverityFilter('all')
     setFamilyFilter('all')
-    setTypeFilter('all')
-    setSearch('')
-    setSelectedWeek(null)
   }
 
+  const handleCardClick = (c: StoredCardDef) => {
+    const mapped = CARD_TYPE_FILTER[c.label]
+    setSearch('')
+    setFamilyFilter('all')
+    setSeverityFilter('all')
+    setTypeFilter('all')
+    if (mapped) {
+      setTypeFilter(mapped)
+    } else if (c.label === 'C-Suite Changes') {
+      setFamilyFilter('csuite')
+    } else if (c.label === 'High Alerts') {
+      setSeverityFilter('HIGH')
+    }
+    setTab(c.target ?? 'signals')
+  }
+
+  const handleRefresh = async (): Promise<void> => {
+    if (!onRefresh || refreshing) return
+    setRefreshing(true)
+    try {
+      await onRefresh()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const cards: StoredCardDef[] = [
+    {
+      icon: '\u{1F3E2}',
+      label: 'Companies Tracked',
+      value: companiesTracked,
+      accent: '#00A7D6',
+      spark: weeklyCountsFor(() => true),
+      target: 'companies',
+    },
+    {
+      icon: '\u{1F4E1}',
+      label: 'Total Signals',
+      value: totalSignals,
+      accent: '#1A73E8',
+      spark: weeklyCountsFor(() => true),
+      pills: [
+        { label: 'H', value: sevCounts.HIGH, color: '#F31A1A' },
+        { label: 'M', value: sevCounts.MEDIUM, color: '#FB8145' },
+        { label: 'L', value: sevCounts.LOW, color: '#3BC884' },
+      ],
+      target: 'signals',
+    },
+    {
+      icon: '\u{1F6A8}',
+      label: 'High Alerts',
+      value: sevCounts.HIGH,
+      accent: '#F31A1A',
+      spark: weeklyCountsFor((e) => e.severity === 'HIGH'),
+      target: 'signals',
+    },
+    {
+      icon: '\u{1F454}',
+      label: 'C-Suite Changes',
+      value: csuiteCount,
+      accent: '#B364D7',
+      spark: weeklyCountsFor((e) => familyOf(e) === 'csuite'),
+      target: 'signals',
+    },
+    {
+      icon: '\u{1F4B0}',
+      label: 'Funding',
+      value: typeCountOf('Funding Round'),
+      accent: '#3BC884',
+      spark: weeklyCountsFor((e) => e.displayType === 'Funding Round'),
+      target: 'signals',
+    },
+    {
+      icon: '\u{1F91D}',
+      label: 'Mergers & Acquisitions',
+      value: typeCountOf('Acquisition / M&A'),
+      accent: '#FB8145',
+      spark: weeklyCountsFor((e) => e.displayType === 'Acquisition / M&A'),
+      target: 'signals',
+    },
+    {
+      icon: '\u{1F4C8}',
+      label: 'IPO',
+      value: typeCountOf('IPO'),
+      accent: '#DFC612',
+      spark: weeklyCountsFor((e) => e.displayType === 'IPO'),
+      target: 'signals',
+    },
+    {
+      icon: '\u{1F680}',
+      label: 'Product Launches',
+      value: typeCountOf('Product Launch'),
+      accent: '#00A7D6',
+      spark: weeklyCountsFor((e) => e.displayType === 'Product Launch'),
+      target: 'signals',
+    },
+    {
+      icon: '\u{1F517}',
+      label: 'Partnerships',
+      value: typeCountOf('Partnership'),
+      accent: '#F8528F',
+      spark: weeklyCountsFor((e) => e.displayType === 'Partnership'),
+      target: 'signals',
+    },
+    ...(hiringEnabled
+      ? ([
+          {
+            icon: '\u{1F9D1}\u200D\u{1F4BC}',
+            label: 'Hiring',
+            value: typeCountOf('Hiring'),
+            accent: '#7B61FF',
+            spark: weeklyCountsFor((e) => e.displayType === 'Hiring'),
+            target: 'signals',
+          },
+        ] as StoredCardDef[])
+      : []),
+  ]
+
   return (
-    <div>
+    <div className='bg-[#F7F8F9]'>
       <TabBar active={tab} onChange={setTab} />
-      <div className='mx-auto max-w-7xl px-4 py-6'>
+      <div className='mx-auto max-w-7xl space-y-6 px-4 py-6'>
+        <div className='flex flex-wrap items-center gap-3'>
+          <div>
+            <h1 className='text-lg font-semibold text-[#2C2D33]'>Account Signal Dashboard</h1>
+            <p className='text-xs text-[#8A8D99]'>
+              {formatNumber(companiesTracked)} companies tracked {'\u00b7'} {formatNumber(totalSignals)} significant signal
+              {totalSignals === 1 ? '' : 's'}
+            </p>
+          </div>
+          {onRefresh && (
+            <button
+              type='button'
+              onClick={() => void handleRefresh()}
+              disabled={refreshing}
+              className='ml-auto rounded-xl bg-[#1A73E8] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#155CBA] disabled:opacity-60'
+            >
+              {refreshing ? 'Refreshing\u2026' : 'Refresh'}
+            </button>
+          )}
+        </div>
+
         {tab === 'overview' && (
           <div className='space-y-6'>
             <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
@@ -787,54 +862,41 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                   accent={c.accent}
                   sparkData={c.spark}
                   pills={c.pills}
-                  selected={CARD_TYPE_FILTER[c.label] !== undefined && CARD_TYPE_FILTER[c.label] === typeFilter}
-                  onClick={() => handleCardClick(c.label)}
+                  onClick={() => handleCardClick(c)}
                 />
               ))}
             </div>
             <div className='grid grid-cols-1 gap-4 lg:grid-cols-3'>
-              <ChartCard title={'Weekly Signal Trend (8 weeks) \u2014 click a bar to filter the feed'} className='lg:col-span-2'>
+              <ChartCard title='Weekly Signal Trend (8 Weeks)'>
                 {enriched.length === 0 ? (
-                  <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No signals yet.</p>
+                  <NoData />
                 ) : (
-                  <div className='mt-2 h-64'>
+                  <div className='mt-2 h-56'>
                     <ResponsiveContainer width='100%' height='100%'>
-                      <BarChart
-                        data={weeklyData}
-                        margin={{ top: 10, right: 16, bottom: 0, left: 0 }}
-                        onClick={(state) => {
-                          const label = activeLabelOf(state)
-                          if (label === null) return
-                          const bucket = weeklyData.find((w) => w.label === label)
-                          if (!bucket) return
-                          setSelectedWeek((prev) => (prev === bucket.key ? null : bucket.key))
-                        }}
-                      >
+                      <BarChart data={weekly} margin={{ top: 10, right: 16, bottom: 0, left: 0 }} onClick={handleWeekClick}>
                         <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' />
                         <XAxis dataKey='label' stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
                         <YAxis allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
                         <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
                         <Bar dataKey='count' name='Signals' radius={[4, 4, 0, 0]}>
-                          {weeklyData.map((w) => (
-                            <Cell
-                              key={w.key}
-                              cursor='pointer'
-                              fill={selectedWeek === null || selectedWeek === w.key ? '#1A73E8' : '#A3C7F6'}
-                            />
+                          {weekly.map((w) => (
+                            <Cell key={w.key} fill={weekFilter === w.key ? '#10458B' : '#1A73E8'} cursor='pointer' />
                           ))}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 )}
+                <p className='mt-2 text-xs text-[#8A8D99]'>Click a bar to filter the recent feed by week.</p>
               </ChartCard>
               <ChartCard title='Severity Mix'>
-                {severityTotal === 0 ? (
-                  <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data yet.</p>
+                {totalSignals === 0 ? (
+                  <NoData />
                 ) : (
-                  <div className='mt-2 h-52'>
+                  <div className='mt-2 h-56'>
                     <ResponsiveContainer width='100%' height='100%'>
                       <PieChart>
+                        <Tooltip contentStyle={tooltipStyle} />
                         <Pie
                           data={severityData}
                           dataKey='value'
@@ -842,13 +904,12 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                           innerRadius={45}
                           outerRadius={75}
                           paddingAngle={3}
-                          stroke='none'
+                          stroke='#FFFFFF'
                         >
                           {severityData.map((d) => (
                             <Cell key={d.name} fill={d.color} />
                           ))}
                         </Pie>
-                        <Tooltip contentStyle={tooltipStyle} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -862,196 +923,231 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                   ))}
                 </ul>
               </ChartCard>
+              <ChartCard title='Signal Type Breakdown'>
+                {typeTotal === 0 ? (
+                  <NoData />
+                ) : (
+                  <>
+                    <div className='mt-2 h-56'>
+                      <ResponsiveContainer width='100%' height='100%'>
+                        <PieChart>
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Pie
+                            data={typeData}
+                            dataKey='count'
+                            nameKey='type'
+                            innerRadius={45}
+                            outerRadius={75}
+                            paddingAngle={2}
+                            stroke='#FFFFFF'
+                          >
+                            {typeData.map((t) => (
+                              <Cell key={t.type} fill={t.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <ul className='mt-3 space-y-1.5' aria-label='Signal type legend'>
+                      {typeData.slice(0, 6).map((t) => (
+                        <li key={t.type} className='flex items-center gap-2 text-xs text-[#575A66]'>
+                          <span className='h-2 w-2 shrink-0 rounded-full' style={{ backgroundColor: t.color }} aria-hidden='true' />
+                          <span className='truncate'>{t.type}</span>
+                          <span className='ml-auto shrink-0 text-[#8A8D99]'>{t.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </ChartCard>
             </div>
-            <section aria-label='Recent signals' className='rounded-2xl border border-[#E2E3E5] bg-white p-5'>
+            <section className='rounded-2xl border border-[#E2E3E5] bg-white p-5' aria-label='Recent signals'>
               <div className='flex flex-wrap items-center gap-2'>
                 <h2 className='text-sm font-semibold text-[#575A66]'>Recent Signals</h2>
-                {selectedWeek !== null && (
+                {weekFilter !== null && (
                   <button
                     type='button'
-                    onClick={() => setSelectedWeek(null)}
-                    className='rounded-full bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-medium text-[#155CBA]'
+                    onClick={() => setWeekFilter(null)}
+                    className='rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2.5 py-0.5 text-[11px] font-medium text-[#155CBA]'
                   >
-                    Week of {weekLabel(selectedWeek)} {'\u2715'}
+                    Week of {selectedWeekLabel} {'\u2715'}
                   </button>
                 )}
-                <span className='ml-auto text-xs text-[#8A8D99]'>{overviewFeed.length} shown</span>
+                <span className='ml-auto text-xs text-[#8A8D99]'>{recentFeed.length} shown</span>
               </div>
-              {overviewFeed.length === 0 ? (
-                <p className='mt-6 text-center text-sm text-[#8A8D99]'>No signals for this selection.</p>
+              {recentFeed.length === 0 ? (
+                <p className='mt-6 pb-4 text-center text-sm text-[#8A8D99]'>No signals to show yet.</p>
               ) : (
                 <div className='mt-3 space-y-3'>
-                  {overviewFeed.map((e, i) => (
-                    <OverviewSignalRow key={`${e.s.id}-${i}`} e={e} company={companyOf(e)} />
+                  {recentFeed.map((e, i) => (
+                    <OverviewSignalRow key={`${e.s.id}-${i}`} e={e} company={companyFor(e.s)} />
                   ))}
                 </div>
               )}
             </section>
           </div>
         )}
+
         {tab === 'companies' && (
-          <div className='rounded-2xl border border-[#E2E3E5] bg-white'>
-            <div className='max-h-[70vh] overflow-auto rounded-2xl'>
-              <table className='w-full min-w-[860px] text-sm'>
-                <thead>
-                  <tr>
-                    {[
-                      'Company',
-                      'Industry',
-                      'Total',
-                      'Funding',
-                      'C-Suite',
-                      'Product',
-                      'Partnership',
-                      ...(hiringEnabled ? ['Hiring'] : []),
-                      'Last Activity',
-                      'Actions',
-                    ].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className='sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {companyRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={hiringEnabled ? 10 : 9} className='px-4 py-12 text-center text-sm text-[#8A8D99]'>
-                        No companies tracked yet. Import a company list to get started.
-                      </td>
-                    </tr>
-                  ) : (
-                    companyRows.map((row) => {
-                      const expanded = expandedCompany === row.key
-                      return (
-                        <Fragment key={row.key}>
-                          <tr
-                            onClick={() => toggleCompany(row.key)}
-                            className='cursor-pointer border-b border-[#F0F1F2] transition-colors last:border-b-0 hover:bg-[#F7F8F9]'
-                          >
-                            <td className='px-4 py-3 font-medium text-[#2C2D33]'>
-                              <span className='inline-flex items-center gap-2'>
-                                <span
-                                  aria-hidden='true'
-                                  className={`inline-block text-[10px] text-[#A7AAB2] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
-                                >
-                                  {'\u25B6'}
-                                </span>
-                                {row.company.company_name}
-                              </span>
-                            </td>
-                            <td className='px-4 py-3 text-[#575A66]'>{industryOf(row.company)}</td>
-                            <td className='px-4 py-3 text-[#575A66]'>{row.signals.length}</td>
-                            <td className='px-4 py-3 text-[#575A66]'>{row.company.by_family?.funding ?? 0}</td>
-                            <td className='px-4 py-3 text-[#575A66]'>{row.company.by_family?.csuite ?? 0}</td>
-                            <td className='px-4 py-3 text-[#575A66]'>{row.company.by_family?.product ?? 0}</td>
-                            <td className='px-4 py-3 text-[#575A66]'>{row.company.by_family?.partnership ?? 0}</td>
-                            {hiringEnabled && (
-                              <td className='px-4 py-3 text-[#575A66]'>
-                                {row.signals.filter((e) => familyOf(e) === 'hiring').length}
-                              </td>
-                            )}
-                            <td className='px-4 py-3 text-[#8A8D99]'>{lastActivityOf(row)}</td>
-                            <td className='px-4 py-3'>
-                              <button
-                                type='button'
-                                onClick={(ev) => {
-                                  ev.stopPropagation()
-                                  void handleDelete(row)
-                                }}
-                                disabled={deletingKey !== null}
-                                className='rounded-lg border border-[#E2E3E5] px-2.5 py-1 text-xs font-medium text-[#C21515] transition-colors hover:bg-[#FFF3F3] disabled:opacity-60'
-                              >
-                                {deletingKey === row.key ? 'Deleting\u2026' : 'Delete'}
-                              </button>
-                            </td>
-                          </tr>
-                          {expanded && (
-                            <tr className='border-b border-[#F0F1F2] last:border-b-0'>
-                              <td colSpan={hiringEnabled ? 10 : 9} className='bg-[#F7F8F9] px-6 py-5'>
-                                <div className='space-y-4'>
-                                  <CompanyInfoSection company={row.company} />
-                                  {(row.techStack.length > 0 || row.keywords.length > 0) && (
-                                    <div className='flex flex-wrap gap-2'>
-                                      {row.techStack.map((t) => (
-                                        <span
-                                          key={`tech-${t}`}
-                                          className='rounded-full bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-medium text-[#155CBA]'
-                                        >
-                                          {t}
-                                        </span>
-                                      ))}
-                                      {row.keywords.map((k) => (
-                                        <span
-                                          key={`kw-${k}`}
-                                          className='rounded-full bg-[#FBF7FD] px-2 py-0.5 text-[11px] font-medium text-[#8F50AC]'
-                                        >
-                                          {k}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                  <div>
-                                    <h3 className='text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'>
-                                      Signals ({row.signals.length})
-                                    </h3>
-                                    {row.signals.length === 0 ? (
-                                      <p className='mt-2 text-xs text-[#8A8D99]'>
-                                        No significant signals recorded for this company yet.
-                                      </p>
-                                    ) : (
-                                      <div className='mt-3 space-y-3'>
-                                        {row.signals.map((e, i) => (
-                                          <SignalRow key={`${e.s.id}-${i}`} e={e} />
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-        {tab === 'signals' && (
           <div className='space-y-4'>
             <div className='flex flex-wrap items-center gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4'>
               <input
                 type='search'
+                value={companySearch}
+                onChange={(e) => setCompanySearch(e.target.value)}
+                placeholder={'Search companies\u2026'}
+                aria-label='Search companies'
+                className={`w-64 ${selectCls}`}
+              />
+              <span className='ml-auto text-xs text-[#8A8D99]'>
+                {visibleCompanyRows.length} of {companyRows.length} compan{companyRows.length === 1 ? 'y' : 'ies'}
+              </span>
+            </div>
+            <div className='rounded-2xl border border-[#E2E3E5] bg-white'>
+              <div className='max-h-[70vh] overflow-auto rounded-2xl'>
+                <table className='w-full min-w-[720px] text-sm'>
+                  <thead>
+                    <tr>
+                      {['Company', 'Industry', 'Location', 'Signals', 'High', 'Latest'].map((h, i) => (
+                        <th
+                          key={h}
+                          className={`sticky top-0 z-10 border-b border-[#E2E3E5] bg-[#F7F8F9] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99] ${
+                            i >= 3 ? 'text-right' : 'text-left'
+                          }`}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleCompanyRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className='px-4 py-12 text-center text-sm text-[#8A8D99]'>
+                          No companies match your search.
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleCompanyRows.map((row) => {
+                        const expanded = expandedCompany === row.key
+                        const highCount = row.signals.filter((e) => e.severity === 'HIGH').length
+                        return (
+                          <Fragment key={row.key}>
+                            <tr
+                              tabIndex={0}
+                              aria-expanded={expanded}
+                              onClick={() => setExpandedCompany((prev) => (prev === row.key ? null : row.key))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ')
+                                  setExpandedCompany((prev) => (prev === row.key ? null : row.key))
+                              }}
+                              className='cursor-pointer border-b border-[#F0F1F2] transition-colors last:border-b-0 hover:bg-[#F7F8F9] focus:bg-[#F7F8F9] focus:outline-none'
+                            >
+                              <td className='px-4 py-3 font-medium text-[#2C2D33]'>
+                                <span className='inline-flex items-center gap-2'>
+                                  <span
+                                    aria-hidden='true'
+                                    className={`inline-block text-[10px] text-[#8A8D99] transition-transform duration-200 ${
+                                      expanded ? 'rotate-90' : ''
+                                    }`}
+                                  >
+                                    {'\u25B6'}
+                                  </span>
+                                  {row.company.company_name}
+                                </span>
+                              </td>
+                              <td className='px-4 py-3 text-[#575A66]'>{industryOf(row.company)}</td>
+                              <td className='px-4 py-3 text-[#575A66]'>{extraField(row.company, ['hq', 'city'])}</td>
+                              <td className='px-4 py-3 text-right text-[#2C2D33]'>{row.signals.length}</td>
+                              <td className='px-4 py-3 text-right text-[#2C2D33]'>{highCount}</td>
+                              <td className='px-4 py-3 text-right text-[#8A8D99]'>
+                                {row.latest ? relativeTime(row.latest.dateIso) : '\u2014'}
+                              </td>
+                            </tr>
+                            {expanded && (
+                              <tr className='border-b border-[#F0F1F2] last:border-b-0'>
+                                <td colSpan={6} className='bg-[#F7F8F9] px-6 py-5'>
+                                  <div className='space-y-4'>
+                                    <CompanyInfoSection company={row.company} />
+                                    {row.techStack.length > 0 && (
+                                      <div>
+                                        <h3 className='text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'>
+                                          Tech Stack
+                                        </h3>
+                                        <div className='mt-2 flex flex-wrap gap-1.5'>
+                                          {row.techStack.map((t, i) => (
+                                            <span
+                                              key={`${t}-${i}`}
+                                              className='rounded-full border border-[#A3C7F6] bg-[#F3F8FE] px-2 py-0.5 text-[11px] font-medium text-[#155CBA]'
+                                            >
+                                              {t}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {row.keywords.length > 0 && (
+                                      <div>
+                                        <h3 className='text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'>
+                                          Keywords
+                                        </h3>
+                                        <div className='mt-2 flex flex-wrap gap-1.5'>
+                                          {row.keywords.map((k, i) => (
+                                            <span
+                                              key={`${k}-${i}`}
+                                              className='rounded-full border border-[#E2E3E5] bg-white px-2 py-0.5 text-[11px] text-[#575A66]'
+                                            >
+                                              {k}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <h3 className='text-[11px] font-semibold uppercase tracking-wide text-[#8A8D99]'>
+                                        Signal History
+                                      </h3>
+                                      {row.signals.length === 0 ? (
+                                        <p className='mt-2 text-xs text-[#8A8D99]'>
+                                          No significant signals recorded for this company yet.
+                                        </p>
+                                      ) : (
+                                        <div className='mt-2 space-y-3'>
+                                          {row.signals.map((e, i) => (
+                                            <SignalRow key={`${e.s.id}-${i}`} e={e} />
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'signals' && (
+          <div className='space-y-4'>
+            <div className='flex flex-wrap items-end gap-2 rounded-2xl border border-[#E2E3E5] bg-white p-4'>
+              <input
+                type='search'
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder='Search signals'
+                placeholder={'Search signals\u2026'}
                 aria-label='Search signals'
                 className={selectCls}
               />
               <select
-                className={selectCls}
-                aria-label='Filter by severity'
-                value={severityFilter}
-                onChange={(e) => setSeverityFilter(e.target.value as 'all' | NormalizedSeverity)}
-              >
-                <option value='all'>All severities</option>
-                {SEVERITIES.map((sv) => (
-                  <option key={sv} value={sv}>
-                    {sv}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={selectCls}
                 aria-label='Filter by family'
+                className={selectCls}
                 value={familyFilter}
                 onChange={(e) => setFamilyFilter(e.target.value as 'all' | StoredFamily)}
               >
@@ -1063,15 +1159,28 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 ))}
               </select>
               <select
-                className={selectCls}
                 aria-label='Filter by signal type'
+                className={selectCls}
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
               >
                 <option value='all'>All types</option>
-                {signalTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {typeData.map((t) => (
+                  <option key={t.type} value={t.type}>
+                    {t.type}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label='Filter by severity'
+                className={selectCls}
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value as 'all' | NormalizedSeverity)}
+              >
+                <option value='all'>All severities</option>
+                {SEVERITIES.map((sev) => (
+                  <option key={sev} value={sev}>
+                    {sev}
                   </option>
                 ))}
               </select>
@@ -1083,87 +1192,60 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 Clear
               </button>
               <span className='ml-auto text-xs text-[#8A8D99]'>
-                {formatNumber(filteredSignals.length)} of {formatNumber(enriched.length)} signal
-                {enriched.length === 1 ? '' : 's'}
+                {formatNumber(filteredSignals.length)} of {formatNumber(totalSignals)} signal{totalSignals === 1 ? '' : 's'}
               </span>
             </div>
             {filteredSignals.length === 0 ? (
               <div className='rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center'>
-                <p className='text-3xl' aria-hidden='true'>{'\u{1F50D}'}</p>
+                <p className='text-3xl' aria-hidden='true'>
+                  {'\u{1F50D}'}
+                </p>
                 <p className='mt-3 text-sm font-medium text-[#2C2D33]'>No signals match your filters</p>
-                <p className='mt-1 text-xs text-[#8A8D99]'>Try clearing filters or importing more companies.</p>
+                <p className='mt-1 text-xs text-[#8A8D99]'>Try clearing filters or searching for another company.</p>
               </div>
             ) : (
               <div className='space-y-3'>
-                {filteredSignals.slice(0, 200).map((e, i) => (
+                {filteredSignals.map((e, i) => (
                   <SignalRow key={`${e.s.id}-${i}`} e={e} />
                 ))}
               </div>
             )}
           </div>
         )}
+
         {tab === 'trends' && (
-          <div className='space-y-6'>
-            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-              {trendHighlights.map((t) => (
-                <div key={t.label} className='rounded-2xl border border-[#E2E3E5] bg-white p-4'>
-                  <p className='text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]'>{t.label}</p>
-                  <p className='mt-1 truncate text-xl font-semibold' style={{ color: t.accent }}>
-                    {t.value}
-                  </p>
-                  <p className='mt-0.5 text-xs text-[#575A66]'>{t.sub}</p>
-                </div>
-              ))}
-            </div>
-            <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-            <ChartCard title='Signals by Family'>
-              {familyTotal === 0 ? (
-                <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data yet.</p>
+          <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+            <ChartCard title='Weekly Signal Trend (8 Weeks)'>
+              {enriched.length === 0 ? (
+                <NoData />
               ) : (
                 <div className='mt-2 h-64'>
                   <ResponsiveContainer width='100%' height='100%'>
-                    <PieChart>
-                      <Pie
-                        data={familyData}
-                        dataKey='value'
-                        nameKey='name'
-                        innerRadius={50}
-                        outerRadius={85}
-                        paddingAngle={3}
-                        stroke='none'
-                      >
-                        {familyData.map((d) => (
-                          <Cell key={d.name} fill={d.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={tooltipStyle} />
-                    </PieChart>
+                    <BarChart data={weekly} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                      <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' />
+                      <XAxis dataKey='label' stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <YAxis allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
+                      <Bar dataKey='count' name='Signals' fill='#3BC884' radius={[4, 4, 0, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
-              <ul className='mt-3 flex flex-wrap gap-4'>
-                {familyData.map((d) => (
-                  <li key={d.name} className='flex items-center gap-2 text-xs text-[#575A66]'>
-                    <span className='h-2.5 w-2.5 rounded-full' style={{ backgroundColor: d.color }} aria-hidden='true' />
-                    {d.name} {'\u00b7'} <span className='font-medium text-[#2C2D33]'>{d.value}</span>
-                  </li>
-                ))}
-              </ul>
             </ChartCard>
-            <ChartCard title='Signal Type Breakdown'>
-              {typeBreakdown.length === 0 ? (
-                <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data yet.</p>
+            <ChartCard title='Signals by Family'>
+              {enriched.length === 0 ? (
+                <NoData />
               ) : (
-                <div className='mt-2 h-72'>
+                <div className='mt-2 h-64'>
                   <ResponsiveContainer width='100%' height='100%'>
-                    <BarChart data={typeBreakdown} layout='vertical' margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
-                      <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' horizontal={false} />
-                      <XAxis type='number' allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
-                      <YAxis type='category' dataKey='type' width={150} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 11 }} />
+                    <BarChart data={familyData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                      <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' />
+                      <XAxis dataKey='name' stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
+                      <YAxis allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
                       <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
-                      <Bar dataKey='count' name='Signals' radius={[0, 4, 4, 0]}>
-                        {typeBreakdown.map((t) => (
-                          <Cell key={t.type} fill={t.color} />
+                      <Bar dataKey='value' name='Signals' radius={[4, 4, 0, 0]}>
+                        {familyData.map((d) => (
+                          <Cell key={d.name} fill={d.color} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -1171,16 +1253,22 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 </div>
               )}
             </ChartCard>
-            <ChartCard title='Top 10 Companies by Signal Count'>
+            <ChartCard title='Top Companies by Signal Count'>
               {topCompanies.length === 0 ? (
-                <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data yet.</p>
+                <NoData />
               ) : (
                 <div className='mt-2 h-72'>
                   <ResponsiveContainer width='100%' height='100%'>
                     <BarChart data={topCompanies} layout='vertical' margin={{ top: 10, right: 24, bottom: 0, left: 8 }}>
                       <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' horizontal={false} />
                       <XAxis type='number' allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
-                      <YAxis type='category' dataKey='company' width={150} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 11 }} />
+                      <YAxis
+                        type='category'
+                        dataKey='company'
+                        width={140}
+                        stroke='#A7AAB2'
+                        tick={{ fill: '#575A66', fontSize: 11 }}
+                      />
                       <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
                       <Bar dataKey='count' name='Signals' fill='#00A7D6' radius={[0, 4, 4, 0]} />
                     </BarChart>
@@ -1188,42 +1276,79 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
                 </div>
               )}
             </ChartCard>
-            <ChartCard title='Weekly Signal Trend (8 weeks)'>
-              {enriched.length === 0 ? (
-                <p className='mb-16 mt-16 text-center text-sm text-[#8A8D99]'>No data yet.</p>
+            <ChartCard title='Signal Type Breakdown'>
+              {typeTotal === 0 ? (
+                <NoData />
               ) : (
-                <div className='mt-2 h-72'>
-                  <ResponsiveContainer width='100%' height='100%'>
-                    <BarChart data={weeklyData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid stroke='#E2E3E5' strokeDasharray='3 3' />
-                      <XAxis dataKey='label' stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
-                      <YAxis allowDecimals={false} stroke='#A7AAB2' tick={{ fill: '#575A66', fontSize: 12 }} />
-                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F3F8FE' }} />
-                      <Bar dataKey='count' name='Signals' fill='#1A73E8' radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className='mt-2 flex flex-col gap-4 sm:flex-row sm:items-center'>
+                  <div className='h-64 w-full sm:w-1/2'>
+                    <ResponsiveContainer width='100%' height='100%'>
+                      <PieChart>
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Pie
+                          data={typeData}
+                          dataKey='count'
+                          nameKey='type'
+                          innerRadius={50}
+                          outerRadius={85}
+                          paddingAngle={2}
+                          stroke='#FFFFFF'
+                        >
+                          {typeData.map((t) => (
+                            <Cell key={t.type} fill={t.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className='w-full space-y-1.5 sm:w-1/2' aria-label='Signal type legend'>
+                    {typeData.map((t) => {
+                      const pct = ((t.count / typeTotal) * 100).toFixed(1)
+                      return (
+                        <li key={t.type} className='flex items-center gap-2 text-xs text-[#575A66]'>
+                          <span className='h-2 w-2 shrink-0 rounded-full' style={{ backgroundColor: t.color }} aria-hidden='true' />
+                          <span className='truncate'>{t.type}</span>
+                          <span className='ml-auto shrink-0 text-[#8A8D99]'>
+                            {t.count} {'\u00b7'} {pct}%
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
               )}
             </ChartCard>
-            </div>
           </div>
         )}
+
         {tab === 'insights' && (
-          <div>
-            {insights.length === 0 ? (
+          <div className='space-y-6'>
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+              {insightTiles.map((t) => (
+                <div key={t.label} className='rounded-2xl border border-[#E2E3E5] bg-white p-4'>
+                  <p className='text-[11px] font-medium uppercase tracking-wide text-[#8A8D99]'>{t.label}</p>
+                  <p className='mt-1 truncate text-xl font-semibold' style={{ color: t.accent }}>
+                    {t.value}
+                  </p>
+                  <p className='mt-0.5 text-xs text-[#8A8D99]'>{t.sub}</p>
+                </div>
+              ))}
+            </div>
+            {highSignals.length === 0 ? (
               <div className='rounded-2xl border border-[#E2E3E5] bg-white p-12 text-center'>
-                <p className='text-3xl' aria-hidden='true'>{'\u{1F4A1}'}</p>
-                <p className='mt-3 text-sm font-medium text-[#2C2D33]'>No high-severity insights yet</p>
-                <p className='mt-1 text-xs text-[#8A8D99]'>
-                  Insights surface HIGH-severity signals only. Check the Signals tab for the full feed.
+                <p className='text-3xl' aria-hidden='true'>
+                  {'\u{1F4A1}'}
                 </p>
+                <p className='mt-3 text-sm font-medium text-[#2C2D33]'>No high-severity insights yet</p>
+                <p className='mt-1 text-xs text-[#8A8D99]'>High-severity signals appear here as companies are analysed.</p>
               </div>
             ) : (
-              <div className='space-y-3'>
-                {insights.slice(0, 100).map((e, i) => (
-                  <OverviewSignalRow key={`${e.s.id}-${i}`} e={e} company={companyOf(e)} />
+              <section aria-label='High severity insights' className='space-y-3'>
+                <h2 className='text-sm font-semibold text-[#575A66]'>High-Severity Signals ({highSignals.length})</h2>
+                {highSignals.map((e, i) => (
+                  <SignalRow key={`${e.s.id}-${i}`} e={e} />
                 ))}
-              </div>
+              </section>
             )}
           </div>
         )}
