@@ -29,6 +29,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function unwrapPayload(raw: unknown): unknown {
+  let current: unknown = raw
+  for (let i = 0; i < 8; i += 1) {
+    if (!isRecord(current)) break
+    if ('error' in current && !isRecord(current.output) && !isRecord(current.result)) {
+      return current
+    }
+    if (isRecord(current.output)) {
+      current = current.output
+      continue
+    }
+    if (isRecord(current.result)) {
+      current = current.result
+      continue
+    }
+    break
+  }
+  return current
+}
+
 export async function POST(request: Request) {
   const apiKey = getApiKey()
 
@@ -94,7 +114,16 @@ export async function POST(request: Request) {
       )
     }
 
-    return NextResponse.json(raw, { status: upstream.status })
+    const payload = unwrapPayload(raw)
+
+    if (!isRecord(payload)) {
+      return NextResponse.json(
+        { error: 'Unexpected response from the delete-company API' },
+        { status: 502 }
+      )
+    }
+
+    return NextResponse.json(payload, { status: upstream.status })
   } catch (err) {
     const detail = err instanceof Error ? err.message : 'Unknown network error'
     return NextResponse.json(

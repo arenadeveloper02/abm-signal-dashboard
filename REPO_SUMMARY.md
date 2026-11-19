@@ -1,21 +1,22 @@
 # Repository Summary: abm-signal-dashboard
 
-> Auto-maintained by Sim Development. Last updated: 2026-11-19T07:41:04.459Z.
+> Auto-maintained by Sim Development. Last updated: 2026-11-19T09:28:44.423Z.
 
 ## Overview
 
-ABM Signal Tracker dashboard that imports company lists and tracks funding, C-suite, product, partnership and hiring signals via Arena workflows.
+ABM Signal Tracker dashboard for monitoring account signals across funding, C-suite, product, partnership and hiring activity. Deploy-repair: fixed corrupted/truncated files (invalid characters and unclosed JSX) in components/StoredSignalsDashboard.tsx and app/api/delete-company/route.ts so next build passes. No schema or dependency changes.
 
 **Repository:** `abm-signal-dashboard`  
-**File count:** 49
+**File count:** 50
 
 ## Features
 
-- Stored signals dashboard with overview, companies, signals, trends and insights tabs
-- CSV/XLSX company list import with background analysis
-- Arena email-gated iframe access
-- Chat assistant over signal data
-- Refresh event logging via Prisma
+- Stored signals dashboard with Overview, Companies, Signals, Trends and Insights tabs
+- CSV/XLSX company import with background analysis
+- Signal severity, family and type filtering
+- Recharts visualizations (weekly trend, severity mix, type breakdown, top companies)
+- Arena iframe email gating with access-denied page
+- Chat widget with session history
 
 ## Tech Stack
 
@@ -72,6 +73,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
+- `app/api/delete-company/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
 
@@ -134,6 +136,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `app/access-denied/page.tsx`
 - `app/api/all-stored-signals/route.ts`
 - `app/api/analyze/route.ts`
+- `app/api/delete-company/route.ts`
 - `app/api/signals/route.ts`
 - `app/api/stored-signals/route.ts`
 - `app/arena-ds-tokens.css`
@@ -180,7 +183,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-11-19T07:41:04.459Z
+- **Updated at:** 2026-11-19T09:28:44.423Z
 - **Request:** STANDING RULE: Never modify prisma/schema.prisma. A previous edit dropped the updatedAt column from RefreshEvent and caused `prisma db push` to fail the Vercel build with a potential_dataloss error. Leave the schema file untouched.
 
 DEPLOY ONLY — NO CODE CHANGES.
