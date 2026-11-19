@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': apiKey,
+        ...(email !== '' ? { 'X-Sim-Email': email } : {}),
       },
       body: JSON.stringify(body),
       cache: 'no-store',
