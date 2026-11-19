@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { resolveRequestEmail } from '@/lib/resolve-request-email'
+import { hiringSignalsEnabled, isHiringFamilySignal, isHiringSignal } from '@/lib/utils'
+import type { StoredSignal } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -120,6 +122,14 @@ export async function POST(request: Request) {
         { status: 502 }
       )
     }
+
+    const hiringEnabled = hiringSignalsEnabled(email)
+    if (!hiringEnabled && Array.isArray(payload.signals)) {
+      payload.signals = (payload.signals as StoredSignal[]).filter(
+        (s) => !(isHiringFamilySignal(s) || isHiringSignal(s))
+      )
+    }
+    payload.hiring_enabled = hiringEnabled
 
     return NextResponse.json(payload, { status: upstream.status })
   } catch (err) {

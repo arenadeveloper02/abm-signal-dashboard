@@ -1,18 +1,22 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import {
   ARENA_ACCESS_DENIED_MESSAGE,
   ARENA_EMAIL_COOKIE_NAME,
+  ARENA_EMAIL_HEADER_NAME,
 } from '@/lib/arena-email-constants'
 
 export {
   ARENA_ACCESS_DENIED_MESSAGE,
   ARENA_EMAIL_COOKIE_NAME,
+  ARENA_EMAIL_HEADER_NAME,
 } from '@/lib/arena-email-constants'
 
 /**
- * Reads the Arena email id from the httpOnly cookie (set by middleware from ?emailId=).
+ * Reads the Arena email id resolved by middleware (?emailId= or the httpOnly cookie).
  */
 export async function getArenaEmailId(): Promise<string | null> {
+  const fromHeader = (await headers()).get(ARENA_EMAIL_HEADER_NAME)?.trim()
+  if (fromHeader) return fromHeader
   const jar = await cookies()
   const value = jar.get(ARENA_EMAIL_COOKIE_NAME)?.value?.trim()
   return value || null

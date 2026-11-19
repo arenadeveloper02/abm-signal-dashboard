@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { resolveRequestEmail } from '@/lib/resolve-request-email'
+import { signalTypesForEmail } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
 
   const email = await resolveRequestEmail(body)
   if (email !== '') body.email = email
+  body.signalTypes = signalTypesForEmail(email)
 
   try {
     const upstream = await fetch(apiUrl, {

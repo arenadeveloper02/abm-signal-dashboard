@@ -15,7 +15,13 @@ export const FAMILIES: Family[] = ['funding', 'csuite', 'product', 'partnership'
 export const HIRING_SIGNAL_DOMAIN = 'northstaranesthesia.com'
 
 export function emailDomain(email: string | null | undefined): string {
-  const value = (email ?? '').trim().toLowerCase()
+  let value = (email ?? '').trim()
+  try {
+    value = decodeURIComponent(value)
+  } catch {
+    // keep the raw value when it is not valid URI encoding
+  }
+  value = value.trim().toLowerCase()
   const at = value.lastIndexOf('@')
   if (at === -1 || at === value.length - 1) return value
   return value.slice(at + 1)
@@ -26,8 +32,8 @@ export function hiringSignalsEnabled(email: string | null | undefined): boolean 
   return domain === HIRING_SIGNAL_DOMAIN
 }
 
-export function familiesForEmail(email: string | null | undefined): StoredFamily[] {
-  return hiringSignalsEnabled(email) ? [...FAMILIES, 'hiring'] : [...FAMILIES]
+export function familiesForHiring(hiringEnabled: boolean): StoredFamily[] {
+  return hiringEnabled ? [...FAMILIES, 'hiring'] : [...FAMILIES]
 }
 
 const BASE_SIGNAL_TYPES = 'funding,csuite,product,partnership'

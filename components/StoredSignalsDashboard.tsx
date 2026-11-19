@@ -15,17 +15,13 @@ import type {
 } from '@/lib/types'
 import TabBar from '@/components/TabBar'
 import KpiCard from '@/components/KpiCard'
-import { useArenaEmailId } from '@/components/arena-email-provider'
 import {
   FAMILY_META,
   NO_SIGNIFICANT_SIGNAL,
-  familiesForEmail,
+  familiesForHiring,
   formatDate,
   formatNumber,
   getStoredSourceLinks,
-  hiringSignalsEnabled,
-  isHiringFamilySignal,
-  isHiringSignal,
   normalizeStoredSeverity,
   relativeTime,
   storedDisplayType,
@@ -448,7 +444,6 @@ function NoData() {
 }
 
 export default function StoredSignalsDashboard({ result, onRefresh }: StoredSignalsDashboardProps) {
-  const email = useArenaEmailId()
   const [tab, setTab] = useState<TabKey>('overview')
   const [search, setSearch] = useState('')
   const [companySearch, setCompanySearch] = useState('')
@@ -459,8 +454,8 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  const hiringEnabled = hiringSignalsEnabled(email)
-  const families = useMemo<StoredFamily[]>(() => familiesForEmail(email), [email])
+  const hiringEnabled = result.hiring_enabled === true
+  const families = useMemo<StoredFamily[]>(() => familiesForHiring(hiringEnabled), [hiringEnabled])
   const companies = useMemo<StoredCompany[]>(
     () => (Array.isArray(result.companies) ? result.companies : []),
     [result.companies]
@@ -502,7 +497,6 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
     const rows = Array.isArray(result.signals) ? result.signals : []
     return rows
       .filter((s) => isSignificant(s))
-      .filter((s) => hiringEnabled || !(isHiringFamilySignal(s) || isHiringSignal(s)))
       .map((s) => {
         const dateIso = storedSignalDate(s)
         const d = new Date(dateIso)
@@ -520,7 +514,7 @@ export default function StoredSignalsDashboard({ result, onRefresh }: StoredSign
         }
       })
       .sort((a, b) => b.timestamp - a.timestamp)
-  }, [result.signals, hiringEnabled, companyByKey])
+  }, [result.signals, companyByKey])
 
   const sevCounts = useMemo<Record<NormalizedSeverity, number>>(() => {
     const counts: Record<NormalizedSeverity, number> = { HIGH: 0, MEDIUM: 0, LOW: 0 }
