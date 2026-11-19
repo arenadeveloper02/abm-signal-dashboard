@@ -124,14 +124,15 @@ export async function POST(request: Request) {
     }
 
     const hiringEnabled = hiringSignalsEnabled(email)
-    if (!hiringEnabled && Array.isArray(payload.signals)) {
-      payload.signals = (payload.signals as StoredSignal[]).filter(
-        (s) => !(isHiringFamilySignal(s) || isHiringSignal(s))
+    const out: Record<string, unknown> = { ...payload, hiring_enabled: hiringEnabled }
+
+    if (!hiringEnabled && Array.isArray(out.signals)) {
+      out.signals = (out.signals as StoredSignal[]).filter(
+        (s) => !isHiringFamilySignal(s) && !isHiringSignal(s)
       )
     }
-    payload.hiring_enabled = hiringEnabled
 
-    return NextResponse.json(payload, { status: upstream.status })
+    return NextResponse.json(out, { status: upstream.status })
   } catch (err) {
     const detail = err instanceof Error ? err.message : 'Unknown network error'
     return NextResponse.json(

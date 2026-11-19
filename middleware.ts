@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { ARENA_EMAIL_COOKIE_NAME, ARENA_EMAIL_HEADER_NAME } from '@/lib/arena-email-constants'
+import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants'
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -26,11 +26,7 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // The cookie set below only reaches the server on later requests, so this request
-  // gets the email through a header instead.
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set(ARENA_EMAIL_HEADER_NAME, emailId)
-  const response = NextResponse.next({ request: { headers: requestHeaders } })
+  const response = NextResponse.next()
   response.headers.set('Content-Security-Policy', frameHeaders['Content-Security-Policy'])
 
   if (fromQuery) {
